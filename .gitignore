@@ -1,0 +1,41 @@
+# Node
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.production
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads
+uploads/
+*.pdf
+*.doc
+*.docx
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
