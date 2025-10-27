@@ -14,11 +14,21 @@ class UsuarioCreate(UsuarioBase):
     senha: str = Field(..., min_length=6)
     curso: Optional[str] = None
     departamento: Optional[str] = None
+    # Novos campos para alunos
+    unidade: Optional[str] = None
+    matricula: Optional[str] = None
+    cr: Optional[float] = None
+    documento_cr: Optional[str] = None
 
 class Usuario(UsuarioBase):
     id: int
     curso: Optional[str] = None
     departamento: Optional[str] = None
+    # Novos campos para alunos
+    unidade: Optional[str] = None
+    matricula: Optional[str] = None
+    cr: Optional[float] = None
+    documento_cr: Optional[str] = None
     status: str = "ativo"
     data_cadastro: datetime
 

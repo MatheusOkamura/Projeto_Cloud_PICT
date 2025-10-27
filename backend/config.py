@@ -21,4 +21,18 @@ class Settings:
     ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"]
     UPLOAD_DIR = "uploads"
 
+# Banco de Dados Mock
+cursos_db = [
+    {"id": 1, "nome": "Administração"},
+    {"id": 2, "nome": "Ciência da Computação"},
+    {"id": 3, "nome": "Direito"},
+    {"id": 4, "nome": "Economia"},
+    {"id": 5, "nome": "Engenharia de Produção"},
+    {"id": 6, "nome": "Jornalismo"},
+    {"id": 7, "nome": "Relações Internacionais"},
+    {"id": 8, "nome": "Sistemas de Informação"},
+]
+
+unidades = ["Faria Lima", "Paulista"]
+
 settings = Settings()
