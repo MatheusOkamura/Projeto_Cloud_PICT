@@ -20,8 +20,8 @@ const Home = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {!user && (
                 <>
-                  <Link to="/cadastro" className="btn-secondary text-lg">
-                    📝 Inscrever-se Agora
+                  <Link to="/login" className="btn-secondary text-lg">
+                    � Fazer Login
                   </Link>
                   <Link to="/sobre" className="btn-outline bg-white text-ibmec-blue-700 hover:bg-gray-100 text-lg">
                     📚 Saiba Mais
@@ -176,8 +176,8 @@ const Home = () => {
             Faça parte do programa de Iniciação Científica do Ibmec
           </p>
           {!user && (
-            <Link to="/cadastro" className="btn-secondary text-lg inline-block">
-              Inscrever-se Agora
+            <Link to="/login" className="btn-secondary text-lg inline-block">
+              Acessar Plataforma
             </Link>
           )}
         </div>

@@ -27,45 +27,42 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Simulação de login - em produção, usar API real
-      // Por enquanto, vamos simular baseado no email
-      let userData = null;
-      
-      if (formData.email.includes('aluno')) {
-        userData = {
-          id: 1,
-          nome: 'João Silva',
+      // Fazer requisição real ao backend
+      const response = await fetch('http://localhost:8000/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           email: formData.email,
-          tipo: 'aluno',
-          curso: 'Administração',
-          status: 'ativo'
-        };
-      } else if (formData.email.includes('orientador')) {
-        userData = {
-          id: 2,
-          nome: 'Prof. Maria Santos',
-          email: formData.email,
-          tipo: 'orientador',
-          departamento: 'Gestão'
-        };
-      } else if (formData.email.includes('coordenador')) {
-        userData = {
-          id: 3,
-          nome: 'Prof. Dr. Carlos Oliveira',
-          email: formData.email,
-          tipo: 'coordenador',
-          departamento: 'Coordenação de Pesquisa'
-        };
-      } else {
-        throw new Error('Usuário não encontrado');
+          senha: formData.senha
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Erro ao fazer login');
       }
 
-      // Salvar no contexto
+      const data = await response.json();
+      console.log('Login response:', data);
+
+      // Salvar usuário no localStorage
+      const userData = data.user;
       localStorage.setItem('user', JSON.stringify(userData));
-      window.location.href = `/dashboard/${userData.tipo}`;
+      
+      // Redirecionar baseado em se é novo usuário e tipo
+      if (data.is_new_user && userData.tipo === 'aluno') {
+        // Novo aluno -> formulário de completar cadastro
+        navigate('/completar-cadastro');
+      } else {
+        // Usuário existente ou orientador/coordenador -> dashboard
+        window.location.href = `/dashboard/${userData.tipo}`;
+      }
       
     } catch (err) {
-      setError('Email ou senha inválidos. Tente: aluno@ibmec.edu.br, orientador@ibmec.edu.br ou coordenador@ibmec.edu.br');
+      console.error('Erro no login:', err);
+      setError(err.message || 'Erro ao fazer login. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -143,23 +140,20 @@ const Login = () => {
 
           <div className="mt-6 pt-6 border-t text-center">
             <p className="text-gray-600">
-              Não tem uma conta?{' '}
-              <Link to="/cadastro" className="text-ibmec-blue-600 hover:text-ibmec-blue-700 font-semibold">
-                Inscreva-se aqui
-              </Link>
+              Não tem uma conta? Use qualquer e-mail para criar.
             </p>
           </div>
 
           {/* Dica de demonstração */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
             <p className="text-xs text-gray-600 mb-2">
-              <strong>💡 Para demonstração, use:</strong>
+              <strong>💡 Para demonstração:</strong>
             </p>
             <ul className="text-xs text-gray-600 space-y-1">
-              <li>• <strong>Aluno:</strong> aluno@ibmec.edu.br</li>
-              <li>• <strong>Orientador:</strong> orientador@ibmec.edu.br</li>
-              <li>• <strong>Coordenador:</strong> coordenador@ibmec.edu.br</li>
-              <li className="mt-2">Senha: qualquer valor</li>
+              <li>• <strong>Usuários existentes:</strong> aluno@alunos.ibmec.edu.br, orientador@orientador.ibmec.edu.br, coordenador@coordenador.ibmec.edu.br</li>
+              <li>• <strong>Novos usuários:</strong> Use qualquer e-mail com @alunos, @professores ou @coordenador</li>
+              <li>• <strong>Tipo detectado automaticamente:</strong> @alunos → aluno, @professores/@orientador → orientador, @coordenador → coordenador</li>
+              <li className="mt-2">Senha: qualquer valor (ex: 123456)</li>
             </ul>
           </div>
         </Card>

@@ -273,7 +273,7 @@ const DashboardOrientador = () => {
                           <td className="py-2 pr-4">{new Date(e.data).toLocaleDateString('pt-BR')}</td>
                           <td className="py-2 pr-4">
                             <span className={`px-2 py-1 rounded text-xs ${
-                              e.status === 'aprovado' ? 'bg-green-100 text-green-700' :
+                              e.status === 'aprovada' ? 'bg-green-100 text-green-700' :
                               e.status === 'em revisão' ? 'bg-yellow-100 text-yellow-700' :
                               'bg-blue-100 text-blue-700'
                             }`}>

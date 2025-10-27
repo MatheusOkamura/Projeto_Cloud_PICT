@@ -25,8 +25,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, senha) => {
     try {
-      // Simulação de login - em produção, fazer requisição real à API
-      const response = await fetch('/api/login', {
+      // Fazer requisição real à API
+      const response = await fetch('http://localhost:8000/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -35,15 +35,17 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (!response.ok) {
-        throw new Error('Credenciais inválidas');
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Credenciais inválidas');
       }
 
-      const userData = await response.json();
+      const data = await response.json();
+      const userData = data.user;
       
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
       
-      return userData;
+      return { user: userData, is_new_user: data.is_new_user };
     } catch (error) {
       console.error('Erro ao fazer login:', error);
       throw error;

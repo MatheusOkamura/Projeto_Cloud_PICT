@@ -25,9 +25,6 @@ const Footer = () => {
                 <Link to="/sobre" className="hover:text-ibmec-gold-300 transition">Sobre o Programa</Link>
               </li>
               <li>
-                <Link to="/cadastro" className="hover:text-ibmec-gold-300 transition">Inscrever-se</Link>
-              </li>
-              <li>
                 <Link to="/login" className="hover:text-ibmec-gold-300 transition">Login</Link>
               </li>
             </ul>

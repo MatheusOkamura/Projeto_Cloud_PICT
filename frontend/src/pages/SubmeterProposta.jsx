@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
@@ -8,10 +8,12 @@ const SubmeterProposta = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [orientadores, setOrientadores] = useState([]);
   
   const [formData, setFormData] = useState({
     titulo_projeto: '',
     area_conhecimento: '',
+    orientador_id: '',
     descricao: '',
     objetivos: '',
     metodologia: '',
@@ -30,6 +32,20 @@ const SubmeterProposta = () => {
     'Psicologia',
     'Outro'
   ];
+
+  // Carregar lista de orientadores
+  useEffect(() => {
+    const fetchOrientadores = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/orientadores');
+        const data = await response.json();
+        setOrientadores(data.orientadores || []);
+      } catch (error) {
+        console.error('Erro ao carregar orientadores:', error);
+      }
+    };
+    fetchOrientadores();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -72,8 +88,15 @@ const SubmeterProposta = () => {
     setError('');
 
     try {
+      // Validação do usuário
+      if (!user || !user.id) {
+        setError('Erro: Usuário não autenticado. Faça login novamente.');
+        setLoading(false);
+        return;
+      }
+
       // Validação básica
-      if (!formData.titulo_projeto || !formData.area_conhecimento || !formData.descricao) {
+      if (!formData.titulo_projeto || !formData.area_conhecimento || !formData.descricao || !formData.orientador_id) {
         setError('Por favor, preencha todos os campos obrigatórios');
         setLoading(false);
         return;
@@ -81,17 +104,26 @@ const SubmeterProposta = () => {
 
       // Criar FormData para enviar arquivo
       const submitData = new FormData();
-      submitData.append('usuario_id', user.id);
+      submitData.append('usuario_id', String(user.id));
       submitData.append('titulo_projeto', formData.titulo_projeto);
       submitData.append('area_conhecimento', formData.area_conhecimento);
+      submitData.append('orientador_id', String(formData.orientador_id));
       submitData.append('descricao', formData.descricao);
-      submitData.append('objetivos', formData.objetivos);
-      submitData.append('metodologia', formData.metodologia);
-      submitData.append('resultados_esperados', formData.resultados_esperados);
+      submitData.append('objetivos', formData.objetivos || '');
+      submitData.append('metodologia', formData.metodologia || '');
+      submitData.append('resultados_esperados', formData.resultados_esperados || '');
       
       if (formData.arquivo) {
         submitData.append('projeto', formData.arquivo);
       }
+
+      console.log('Enviando proposta para:', 'http://localhost:8000/api/inscricoes/proposta');
+      console.log('Dados:', {
+        usuario_id: user.id,
+        titulo_projeto: formData.titulo_projeto,
+        area_conhecimento: formData.area_conhecimento,
+        orientador_id: formData.orientador_id
+      });
 
       // Enviar para API
       const response = await fetch('http://localhost:8000/api/inscricoes/proposta', {
@@ -100,15 +132,21 @@ const SubmeterProposta = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao submeter proposta');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Erro ao submeter proposta');
       }
 
       const result = await response.json();
+      console.log('Proposta submetida com sucesso:', result);
+      
+      // Mostrar mensagem de sucesso antes de redirecionar
+      alert('Proposta submetida com sucesso! Aguarde a análise da coordenação.');
       
       // Redirecionar para dashboard do aluno
       navigate('/dashboard/aluno');
       
     } catch (err) {
+      console.error('Erro ao submeter proposta:', err);
       setError(err.message || 'Erro ao submeter proposta. Tente novamente.');
     } finally {
       setLoading(false);
@@ -186,6 +224,35 @@ const SubmeterProposta = () => {
                   <option key={area} value={area}>{area}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Seleção de Orientador */}
+            <div>
+              <label className="label">
+                Orientador Preferencial <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="orientador_id"
+                value={formData.orientador_id}
+                onChange={handleChange}
+                className="input-field"
+                required
+              >
+                <option value="">Selecione um orientador</option>
+                {orientadores.map(orientador => (
+                  <option key={orientador.id} value={orientador.id}>
+                    {orientador.nome}
+                    {orientador.titulacao && ` - ${orientador.titulacao}`}
+                    {orientador.area_pesquisa && ` (${orientador.area_pesquisa})`}
+                    {orientador.vagas_disponiveis > 0 
+                      ? ` - ${orientador.vagas_disponiveis} vaga(s) disponível(is)` 
+                      : ' - Sem vagas no momento'}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-500 mt-1">
+                ℹ️ Selecione o orientador que melhor se alinha com sua área de pesquisa
+              </p>
             </div>
 
             {/* Descrição */}

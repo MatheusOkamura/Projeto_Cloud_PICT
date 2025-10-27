@@ -23,7 +23,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="login" element={<Login />} />
-            <Route path="cadastro" element={<Cadastro />} />
+            <Route path="completar-cadastro" element={<Cadastro />} />
             <Route path="sobre" element={<Sobre />} />
             
             {/* Rotas Protegidas */}

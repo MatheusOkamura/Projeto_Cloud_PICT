@@ -50,11 +50,11 @@ const DashboardAluno = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'aprovado':
+      case 'aprovada':
         return 'bg-green-100 text-green-800 border-green-300';
       case 'em_analise':
         return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'rejeitado':
+      case 'rejeitada':
         return 'bg-red-100 text-red-800 border-red-300';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300';
@@ -63,11 +63,11 @@ const DashboardAluno = () => {
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'aprovado':
+      case 'aprovada':
         return '✅ Aprovado';
       case 'em_analise':
         return '⏳ Em Análise';
-      case 'rejeitado':
+      case 'rejeitada':
         return '❌ Rejeitado';
       default:
         return '📋 Pendente';
@@ -117,13 +117,13 @@ const DashboardAluno = () => {
               <Card>
                 <div className="flex items-center space-x-4">
                   <div className="text-4xl">
-                    {temProposta ? (inscricao.status === 'aprovado' ? '✅' : inscricao.status === 'em_analise' ? '⏳' : '📋') : '📝'}
+                    {temProposta ? (inscricao.status === 'aprovada' ? '✅' : inscricao.status === 'em_analise' ? '⏳' : '📋') : '📝'}
                   </div>
                   <div>
                     <p className="text-gray-600 text-sm">Status</p>
                     <p className="text-xl font-bold text-ibmec-blue-700">
                       {temProposta 
-                        ? (inscricao.status === 'em_analise' ? 'Em Análise' : inscricao.status === 'aprovado' ? 'Aprovado' : 'Pendente')
+                        ? (inscricao.status === 'em_analise' ? 'Em Análise' : inscricao.status === 'aprovada' ? 'Aprovado' : 'Pendente')
                         : 'Sem Proposta'
                       }
                     </p>

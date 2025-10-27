@@ -245,11 +245,11 @@ const Sobre = () => {
             Pronto para fazer parte desta jornada?
           </h2>
           <p className="text-xl mb-8 text-gray-200 max-w-2xl mx-auto">
-            Inscreva-se agora e comece sua trajetória na pesquisa científica
+            Acesse a plataforma e comece sua trajetória na pesquisa científica
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/cadastro" className="btn-secondary text-lg">
-              📝 Inscrever-se
+            <Link to="/login" className="btn-secondary text-lg">
+              � Acessar Plataforma
             </Link>
             <Link to="/" className="btn-outline bg-white text-ibmec-blue-700 hover:bg-gray-100 text-lg">
               🏠 Voltar ao Início

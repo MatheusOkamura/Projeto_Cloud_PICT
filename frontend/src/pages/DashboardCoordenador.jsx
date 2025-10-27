@@ -14,6 +14,7 @@ const DashboardCoordenador = () => {
   const [feedbackModal, setFeedbackModal] = useState({ open: false, id: null, status: 'aprovado', mensagem: '' });
   const [selectedAlunoEntregas, setSelectedAlunoEntregas] = useState(null);
   const [entregasAluno, setEntregasAluno] = useState([]);
+  const [propostaDetalhada, setPropostaDetalhada] = useState(null);
 
   const loadInscricoes = async () => {
     try {
@@ -55,11 +56,19 @@ const DashboardCoordenador = () => {
     }
   };
 
+  const verDetalhesProposta = (inscricao) => {
+    setPropostaDetalhada(inscricao);
+  };
+
+  const fecharDetalhes = () => {
+    setPropostaDetalhada(null);
+  };
+
   const estatisticas = {
     total: inscricoes.length,
-    aprovados: inscricoes.filter(i => i.status === 'aprovado').length,
+    aprovados: inscricoes.filter(i => i.status === 'aprovada').length,
     pendentes: inscricoes.filter(i => i.status === 'pendente' || i.status === 'em_analise').length,
-    rejeitados: inscricoes.filter(i => i.status === 'rejeitado').length,
+    rejeitados: inscricoes.filter(i => i.status === 'rejeitada').length,
     alunos: inscricoes.filter(i => i.tipo === 'aluno' || i.usuario_id).length,
     orientadores: inscricoes.filter(i => i.tipo === 'orientador').length
   };
@@ -70,11 +79,11 @@ const DashboardCoordenador = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'aprovado':
+      case 'aprovada':
         return 'bg-green-100 text-green-800';
       case 'pendente':
         return 'bg-yellow-100 text-yellow-800';
-      case 'rejeitado':
+      case 'rejeitada':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -87,7 +96,10 @@ const DashboardCoordenador = () => {
 
   const enviarDecisao = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/inscricoes/${feedbackModal.id}/status?novo_status=${feedbackModal.status}&feedback=${encodeURIComponent(feedbackModal.mensagem)}`, {
+      // Converter o status para o formato esperado pelo backend (feminino)
+      const statusBackend = feedbackModal.status === 'aprovado' ? 'aprovada' : 'rejeitada';
+      
+      const res = await fetch(`http://localhost:8000/api/inscricoes/${feedbackModal.id}/status?novo_status=${statusBackend}&feedback=${encodeURIComponent(feedbackModal.mensagem)}`, {
         method: 'PATCH',
       });
       if (!res.ok) throw new Error('Falha ao atualizar status');
@@ -234,9 +246,9 @@ const DashboardCoordenador = () => {
                   Em Análise ({estatisticas.pendentes})
                 </button>
                 <button
-                  onClick={() => setFilterStatus('aprovado')}
+                  onClick={() => setFilterStatus('aprovada')}
                   className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    filterStatus === 'aprovado'
+                    filterStatus === 'aprovada'
                       ? 'bg-green-600 text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
@@ -244,9 +256,9 @@ const DashboardCoordenador = () => {
                   Aprovados ({estatisticas.aprovados})
                 </button>
                 <button
-                  onClick={() => setFilterStatus('rejeitado')}
+                  onClick={() => setFilterStatus('rejeitada')}
                   className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    filterStatus === 'rejeitado'
+                    filterStatus === 'rejeitada'
                       ? 'bg-red-600 text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
@@ -273,24 +285,40 @@ const DashboardCoordenador = () => {
                           {inscricao.status.toUpperCase()}
                         </span>
                       </div>
-                      <div className="grid md:grid-cols-2 gap-2 text-sm text-gray-600">
+                      <div className="grid md:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
                         <p><strong>Projeto:</strong> {inscricao.titulo_projeto}</p>
                         <p><strong>Área:</strong> {inscricao.area_conhecimento}</p>
-                        <p className="md:col-span-2"><strong>Descrição:</strong> {inscricao.descricao}</p>
+                        {inscricao.orientador_nome && <p><strong>Orientador:</strong> {inscricao.orientador_nome}</p>}
+                        {inscricao.email && <p><strong>Email:</strong> {inscricao.email}</p>}
+                        {inscricao.curso && <p><strong>Curso:</strong> {inscricao.curso}</p>}
+                        {inscricao.matricula && <p><strong>Matrícula:</strong> {inscricao.matricula}</p>}
+                        {inscricao.unidade && <p><strong>Unidade:</strong> {inscricao.unidade}</p>}
+                        {inscricao.cr && <p><strong>CR:</strong> {inscricao.cr}</p>}
                         <p><strong>Data:</strong> {inscricao.data_submissao ? new Date(inscricao.data_submissao).toLocaleString('pt-BR') : '-'}</p>
-                        {inscricao.arquivo_projeto && (
-                          <p><strong>Arquivo:</strong> {inscricao.arquivo_projeto}</p>
-                        )}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <p className="mb-2"><strong>Descrição:</strong> {inscricao.descricao?.substring(0, 150)}{inscricao.descricao?.length > 150 ? '...' : ''}</p>
                       </div>
                     </div>
 
                     <div className="flex flex-col gap-2 lg:w-60">
-                      <button onClick={() => setFeedbackModal({ open: true, id: inscricao.id, status: 'aprovado', mensagem: '' })} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm">
-                        ✅ Aprovar
+                      <button 
+                        onClick={() => verDetalhesProposta(inscricao)} 
+                        className="btn-primary text-sm py-2"
+                      >
+                        👁️ Ver Detalhes Completos
                       </button>
-                      <button onClick={() => setFeedbackModal({ open: true, id: inscricao.id, status: 'rejeitado', mensagem: '' })} className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm">
-                        ❌ Rejeitar
-                      </button>
+                      {/* Mostrar botões de aprovar/rejeitar apenas se o status for pendente ou em_analise */}
+                      {(inscricao.status === 'pendente' || inscricao.status === 'em_analise') && (
+                        <>
+                          <button onClick={() => setFeedbackModal({ open: true, id: inscricao.id, status: 'aprovado', mensagem: '' })} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm">
+                            ✅ Aprovar
+                          </button>
+                          <button onClick={() => setFeedbackModal({ open: true, id: inscricao.id, status: 'rejeitado', mensagem: '' })} className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm">
+                            ❌ Rejeitar
+                          </button>
+                        </>
+                      )}
                       {inscricao.usuario_id && (
                         <button onClick={() => carregarEntregasAluno(inscricao.usuario_id)} className="btn-outline text-sm py-2">
                           📦 Ver Entregas do Aluno
@@ -452,6 +480,164 @@ const DashboardCoordenador = () => {
                 <button className="btn-outline" onClick={() => setFeedbackModal({ open: false, id: null, status: 'aprovado', mensagem: '' })}>Cancelar</button>
                 <button className="btn-primary" onClick={enviarDecisao}>Confirmar</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhes da Proposta */}
+      {propostaDetalhada && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl shadow-xl my-8">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-ibmec-blue-800">
+                📋 Detalhes Completos da Proposta
+              </h3>
+              <button 
+                onClick={fecharDetalhes}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+              {/* Informações do Aluno */}
+              <div className="bg-ibmec-blue-50 p-4 rounded-lg">
+                <h4 className="font-bold text-ibmec-blue-800 mb-3 text-lg">👤 Informações do Aluno</h4>
+                <div className="grid md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600 font-semibold">Nome:</p>
+                    <p className="text-gray-800">{propostaDetalhada.nome || 'Não informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">Email:</p>
+                    <p className="text-gray-800">{propostaDetalhada.email || 'Não informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">CPF:</p>
+                    <p className="text-gray-800">{propostaDetalhada.cpf || 'Não informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">Telefone:</p>
+                    <p className="text-gray-800">{propostaDetalhada.telefone || 'Não informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">Curso:</p>
+                    <p className="text-gray-800">{propostaDetalhada.curso || 'Não informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">Matrícula:</p>
+                    <p className="text-gray-800">{propostaDetalhada.matricula || 'Não informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">Unidade:</p>
+                    <p className="text-gray-800">{propostaDetalhada.unidade || 'Não informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">CR (Coeficiente de Rendimento):</p>
+                    <p className="text-gray-800">{propostaDetalhada.cr || 'Não informado'}</p>
+                  </div>
+                  {propostaDetalhada.orientador_nome && (
+                    <div className="md:col-span-2">
+                      <p className="text-gray-600 font-semibold">Orientador Selecionado:</p>
+                      <p className="text-gray-800 font-bold text-ibmec-blue-700">{propostaDetalhada.orientador_nome}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Informações do Projeto */}
+              <div className="bg-ibmec-gold-50 p-4 rounded-lg">
+                <h4 className="font-bold text-ibmec-blue-800 mb-3 text-lg">🔬 Informações do Projeto</h4>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-gray-600 font-semibold">Título do Projeto:</p>
+                    <p className="text-gray-800 text-base">{propostaDetalhada.titulo_projeto}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">Área de Conhecimento:</p>
+                    <p className="text-gray-800">{propostaDetalhada.area_conhecimento}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">Descrição:</p>
+                    <p className="text-gray-800 whitespace-pre-wrap">{propostaDetalhada.descricao || 'Não informado'}</p>
+                  </div>
+                  {propostaDetalhada.objetivos && (
+                    <div>
+                      <p className="text-gray-600 font-semibold">Objetivos:</p>
+                      <p className="text-gray-800 whitespace-pre-wrap">{propostaDetalhada.objetivos}</p>
+                    </div>
+                  )}
+                  {propostaDetalhada.metodologia && (
+                    <div>
+                      <p className="text-gray-600 font-semibold">Metodologia:</p>
+                      <p className="text-gray-800 whitespace-pre-wrap">{propostaDetalhada.metodologia}</p>
+                    </div>
+                  )}
+                  {propostaDetalhada.resultados_esperados && (
+                    <div>
+                      <p className="text-gray-600 font-semibold">Resultados Esperados:</p>
+                      <p className="text-gray-800 whitespace-pre-wrap">{propostaDetalhada.resultados_esperados}</p>
+                    </div>
+                  )}
+                  {propostaDetalhada.arquivo_projeto && (
+                    <div>
+                      <p className="text-gray-600 font-semibold">Arquivo Anexado:</p>
+                      <p className="text-gray-800">📎 {propostaDetalhada.arquivo_projeto}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-gray-600 font-semibold">Data de Submissão:</p>
+                    <p className="text-gray-800">
+                      {propostaDetalhada.data_submissao 
+                        ? new Date(propostaDetalhada.data_submissao).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'Não informado'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 font-semibold">Status:</p>
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(propostaDetalhada.status)}`}>
+                      {propostaDetalhada.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+              <button className="btn-outline" onClick={fecharDetalhes}>
+                Fechar
+              </button>
+              {/* Mostrar botões de aprovar/rejeitar apenas se o status for pendente ou em_analise */}
+              {(propostaDetalhada.status === 'pendente' || propostaDetalhada.status === 'em_analise') && (
+                <>
+                  <button 
+                    onClick={() => {
+                      fecharDetalhes();
+                      setFeedbackModal({ open: true, id: propostaDetalhada.id, status: 'aprovado', mensagem: '' });
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+                  >
+                    ✅ Aprovar
+                  </button>
+                  <button 
+                    onClick={() => {
+                      fecharDetalhes();
+                      setFeedbackModal({ open: true, id: propostaDetalhada.id, status: 'rejeitado', mensagem: '' });
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+                  >
+                    ❌ Rejeitar
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
