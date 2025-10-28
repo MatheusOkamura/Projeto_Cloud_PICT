@@ -29,9 +29,17 @@ export default function AuthCallback() {
         // Salvar no contexto
         handleOAuthCallback(token, userData, isNewUser);
 
+        // Verificar se é aluno e se precisa completar cadastro
+        const precisaCompletarCadastro = userData.tipo === 'aluno' && (
+          !userData.curso || 
+          !userData.matricula || 
+          !userData.cpf || 
+          !userData.telefone
+        );
+
         // Redirecionar baseado no tipo de usuário e status de cadastro
-        if (isNewUser) {
-          // Usuário novo - completar cadastro
+        if (precisaCompletarCadastro) {
+          // Aluno sem dados completos - completar cadastro
           navigate('/cadastro', { 
             state: { 
               email: userData.email, 
@@ -40,7 +48,7 @@ export default function AuthCallback() {
             } 
           });
         } else {
-          // Usuário existente - ir para dashboard apropriado
+          // Usuário com dados completos - ir para dashboard apropriado
           switch (userData.tipo) {
             case 'aluno':
               navigate('/dashboard-aluno');

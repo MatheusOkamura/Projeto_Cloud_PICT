@@ -7,13 +7,35 @@ import EnviarApresentacaoAmostra from './EnviarApresentacaoAmostra';
 import EnviarArtigoFinal from './EnviarArtigoFinal';
 
 const DashboardAluno = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [inscricao, setInscricao] = useState(null);
   const [loading, setLoading] = useState(true);
   const [etapaAtual, setEtapaAtual] = useState('');
+  const [userData, setUserData] = useState(user);
 
   useEffect(() => {
+    // Função para buscar dados atualizados do usuário
+    const fetchUserData = async () => {
+      if (!user?.id) return;
+      
+      try {
+        console.log('🔍 Buscando dados do usuário ID:', user.id);
+        const response = await fetch(`http://localhost:8000/api/usuarios/${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Dados recebidos do backend:', data);
+          setUserData(data);
+          // Atualizar também o contexto global
+          updateUser(data);
+        } else {
+          console.error('❌ Erro na resposta:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar dados do usuário:', error);
+      }
+    };
+
     // Buscar inscrição do aluno
     const fetchInscricao = async () => {
       try {
@@ -37,12 +59,15 @@ const DashboardAluno = () => {
         setLoading(false);
       }
     };
+    
     if (user?.id) {
+      console.log('👤 Usuário atual:', user);
+      fetchUserData();
       fetchInscricao();
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id, updateUser]);
 
   // Simular se o aluno tem proposta submetida
   const temProposta = inscricao !== null;
@@ -80,7 +105,7 @@ const DashboardAluno = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-ibmec-blue-800 mb-2">
-            Olá, {user?.nome?.split(' ')[0]}! 👋
+            Olá, {userData?.nome?.split(' ')[0]}! 👋
           </h1>
           <p className="text-gray-600">Bem-vindo ao seu painel de Iniciação Científica</p>
         </div>
@@ -99,7 +124,7 @@ const DashboardAluno = () => {
                   <div className="text-4xl">📚</div>
                   <div>
                     <p className="text-gray-600 text-sm">Curso</p>
-                    <p className="text-xl font-bold text-ibmec-blue-700">{user?.curso}</p>
+                    <p className="text-xl font-bold text-ibmec-blue-700">{userData?.curso || 'Não informado'}</p>
                   </div>
                 </div>
               </Card>
@@ -109,7 +134,7 @@ const DashboardAluno = () => {
                   <div className="text-4xl">📧</div>
                   <div>
                     <p className="text-gray-600 text-sm">E-mail</p>
-                    <p className="text-sm font-semibold text-ibmec-blue-700 truncate">{user?.email}</p>
+                    <p className="text-sm font-semibold text-ibmec-blue-700 truncate">{userData?.email}</p>
                   </div>
                 </div>
               </Card>
@@ -316,7 +341,7 @@ const DashboardAluno = () => {
                       <label className="label">Nome Completo</label>
                       <input
                         type="text"
-                        value={user?.nome}
+                        value={userData?.nome || ''}
                         disabled
                         className="input-field bg-gray-50"
                       />
@@ -325,16 +350,45 @@ const DashboardAluno = () => {
                       <label className="label">E-mail Institucional</label>
                       <input
                         type="email"
-                        value={user?.email}
+                        value={userData?.email || ''}
                         disabled
                         className="input-field bg-gray-50"
                       />
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">Matrícula</label>
+                        <input
+                          type="text"
+                          value={userData?.matricula || 'Não informado'}
+                          disabled
+                          className="input-field bg-gray-50"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">CPF</label>
+                        <input
+                          type="text"
+                          value={userData?.cpf || 'Não informado'}
+                          disabled
+                          className="input-field bg-gray-50"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="label">Curso</label>
                       <input
                         type="text"
-                        value={user?.curso}
+                        value={userData?.curso || 'Não informado'}
+                        disabled
+                        className="input-field bg-gray-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Telefone</label>
+                      <input
+                        type="text"
+                        value={userData?.telefone || 'Não informado'}
                         disabled
                         className="input-field bg-gray-50"
                       />

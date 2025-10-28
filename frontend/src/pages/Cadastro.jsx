@@ -24,6 +24,7 @@ const Cadastro = () => {
   const [uploadProgress, setUploadProgress] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     // Carregar dados do usuário logado
@@ -82,14 +83,17 @@ const Cadastro = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Limpar erro anterior
+    setError('');
+    
     // Validar CR e documento apenas para alunos
     if (formData.tipo === 'aluno') {
       if (!formData.cr) {
-        alert('Por favor, informe o CR.');
+        setError('Por favor, informe o CR.');
         return;
       }
       if (!documentoCR) {
-        alert('Por favor, envie o documento de CR.');
+        setError('Por favor, envie o documento de CR.');
         return;
       }
     }
@@ -105,7 +109,7 @@ const Cadastro = () => {
         formDataUpload.append('email', formData.email);
         formDataUpload.append('arquivo', documentoCR);
 
-        const uploadResponse = await fetch('http://localhost:8000/api/upload-documento-cr', {
+        const uploadResponse = await fetch('http://localhost:8000/api/auth/upload-documento-cr', {
           method: 'POST',
           body: formDataUpload
         });
@@ -114,7 +118,9 @@ const Cadastro = () => {
           const uploadData = await uploadResponse.json();
           documentoCRPath = uploadData.filename;
         } else {
-          throw new Error('Erro ao fazer upload do documento de CR');
+          const errorData = await uploadResponse.json();
+          console.error('Erro no upload:', errorData);
+          throw new Error(errorData.detail || 'Erro ao fazer upload do documento de CR');
         }
         setUploadProgress(false);
       }
@@ -139,7 +145,7 @@ const Cadastro = () => {
       }
 
       // Enviar dados para o backend
-      const response = await fetch('http://localhost:8000/api/completar-cadastro', {
+      const response = await fetch('http://localhost:8000/api/auth/completar-cadastro', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,9 +174,11 @@ const Cadastro = () => {
       
     } catch (error) {
       console.error('Erro ao enviar:', error);
-      alert(error.message || 'Erro ao completar cadastro. Tente novamente.');
+      setError(error.message || 'Erro ao completar cadastro. Tente novamente.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
+      setUploadProgress(false);
     }
   };
 
@@ -206,6 +214,21 @@ const Cadastro = () => {
             </h1>
             <p className="text-gray-600">Preencha seus dados para continuar</p>
           </div>
+
+          {/* Mensagem de Erro */}
+          {error && (
+            <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg mb-6">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="font-semibold">Erro ao processar cadastro</p>
+                  <p className="text-sm">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Tipo de Usuário (readonly) */}

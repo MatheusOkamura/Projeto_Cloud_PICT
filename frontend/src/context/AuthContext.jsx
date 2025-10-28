@@ -89,6 +89,27 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(userData));
   };
 
+  const refreshUser = async () => {
+    // Recarrega os dados do usuário do backend
+    if (!user?.id || !token) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8000/api/usuarios/${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+      }
+    } catch (error) {
+      console.error('Erro ao recarregar dados do usuário:', error);
+    }
+  };
+
   const value = {
     user,
     token,
@@ -97,6 +118,7 @@ export const AuthProvider = ({ children }) => {
     handleOAuthCallback,
     logout,
     updateUser,
+    refreshUser,
     loading,
     isAuthenticated: !!user,
   };
