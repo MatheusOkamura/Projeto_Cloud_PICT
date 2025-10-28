@@ -12,21 +12,42 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Verificar se há usuário salvo no localStorage
+    // Verificar se há usuário e token salvos no localStorage
     const savedUser = localStorage.getItem('user');
-    if (savedUser) {
+    const savedToken = localStorage.getItem('token');
+    
+    if (savedUser && savedToken) {
       setUser(JSON.parse(savedUser));
+      setToken(savedToken);
     }
+    
     setLoading(false);
   }, []);
 
+  const loginWithOAuth = () => {
+    // Redirecionar para endpoint OAuth do backend
+    window.location.href = 'http://localhost:8000/api/auth/login';
+  };
+
+  const handleOAuthCallback = (token, userData, isNewUser) => {
+    // Salvar token e dados do usuário após OAuth callback
+    setToken(token);
+    setUser(userData);
+    
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    
+    return { user: userData, is_new_user: isNewUser };
+  };
+
   const login = async (email, senha) => {
+    // Login legado (compatibilidade)
     try {
-      // Fazer requisição real à API
-      const response = await fetch('http://localhost:8000/api/login', {
+      const response = await fetch('http://localhost:8000/api/auth/legacy-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -41,9 +62,13 @@ export const AuthProvider = ({ children }) => {
 
       const data = await response.json();
       const userData = data.user;
+      const accessToken = data.access_token;
       
       setUser(userData);
+      setToken(accessToken);
+      
       localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', accessToken);
       
       return { user: userData, is_new_user: data.is_new_user };
     } catch (error) {
@@ -54,13 +79,24 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
+    setToken(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
+  };
+
+  const updateUser = (userData) => {
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
   };
 
   const value = {
     user,
+    token,
     login,
+    loginWithOAuth,
+    handleOAuthCallback,
     logout,
+    updateUser,
     loading,
     isAuthenticated: !!user,
   };

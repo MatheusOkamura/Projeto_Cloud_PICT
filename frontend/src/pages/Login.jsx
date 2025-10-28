@@ -12,7 +12,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, loginWithOAuth } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -21,43 +21,43 @@ const Login = () => {
     });
   };
 
+  const handleOAuthLogin = () => {
+    setError('');
+    setLoading(true);
+    
+    // Redirecionar para endpoint OAuth
+    loginWithOAuth();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // Fazer requisição real ao backend
-      const response = await fetch('http://localhost:8000/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          senha: formData.senha
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Erro ao fazer login');
-      }
-
-      const data = await response.json();
-      console.log('Login response:', data);
-
-      // Salvar usuário no localStorage
-      const userData = data.user;
-      localStorage.setItem('user', JSON.stringify(userData));
+      // Login legado (com formulário)
+      const result = await login(formData.email, formData.senha);
+      const userData = result.user;
       
       // Redirecionar baseado em se é novo usuário e tipo
-      if (data.is_new_user && userData.tipo === 'aluno') {
+      if (result.is_new_user && userData.tipo === 'aluno') {
         // Novo aluno -> formulário de completar cadastro
-        navigate('/completar-cadastro');
+        navigate('/cadastro', { state: { email: userData.email, nome: userData.nome } });
       } else {
-        // Usuário existente ou orientador/coordenador -> dashboard
-        window.location.href = `/dashboard/${userData.tipo}`;
+        // Usuário existente -> dashboard
+        switch (userData.tipo) {
+          case 'aluno':
+            navigate('/dashboard-aluno');
+            break;
+          case 'orientador':
+            navigate('/dashboard-orientador');
+            break;
+          case 'coordenador':
+            navigate('/dashboard-coordenador');
+            break;
+          default:
+            navigate('/');
+        }
       }
       
     } catch (err) {
@@ -86,6 +86,48 @@ const Login = () => {
             </div>
           )}
 
+          {/* OAUTH TEMPORARIAMENTE DESABILITADO - Aguardando configuração Azure AD */}
+          {/* 
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={handleOAuthLogin}
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-3 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Redirecionando...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 23 23">
+                    <path d="M0 0h11v11H0z" fill="#f25022" />
+                    <path d="M12 0h11v11H12z" fill="#7fba00" />
+                    <path d="M0 12h11v11H0z" fill="#00a4ef" />
+                    <path d="M12 12h11v11H12z" fill="#ffb900" />
+                  </svg>
+                  <span>Entrar com Microsoft</span>
+                </>
+              )}
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-2">
+              ✅ Recomendado: Login seguro com sua conta institucional
+            </p>
+          </div>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500">Ou use o formulário</span>
+            </div>
+          </div>
+          */}
+
+          {/* Formulário de Login Legado */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="label">

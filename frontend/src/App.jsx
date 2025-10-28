@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Cadastro from './pages/Cadastro';
+import AuthCallback from './pages/AuthCallback';
 import DashboardAluno from './pages/DashboardAluno';
 import DashboardOrientador from './pages/DashboardOrientador';
 import DashboardCoordenador from './pages/DashboardCoordenador';
@@ -23,7 +24,8 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="login" element={<Login />} />
-            <Route path="completar-cadastro" element={<Cadastro />} />
+            <Route path="cadastro" element={<Cadastro />} />
+            <Route path="auth/callback" element={<AuthCallback />} />
             <Route path="sobre" element={<Sobre />} />
             
             {/* Rotas Protegidas */}
@@ -60,7 +62,7 @@ function App() {
               } 
             />
             <Route 
-              path="dashboard/aluno" 
+              path="dashboard-aluno" 
               element={
                 <ProtectedRoute allowedRoles={['aluno']}>
                   <DashboardAluno />
@@ -68,7 +70,7 @@ function App() {
               } 
             />
             <Route 
-              path="dashboard/orientador" 
+              path="dashboard-orientador" 
               element={
                 <ProtectedRoute allowedRoles={['orientador']}>
                   <DashboardOrientador />
@@ -84,7 +86,7 @@ function App() {
               } 
             />
             <Route 
-              path="dashboard/coordenador" 
+              path="dashboard-coordenador" 
               element={
                 <ProtectedRoute allowedRoles={['coordenador']}>
                   <DashboardCoordenador />

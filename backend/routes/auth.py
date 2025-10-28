@@ -1,31 +1,62 @@
-from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form, Depends
+from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form, Depends, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from models.schemas import LoginRequest, LoginResponse, Usuario
 from models.database_models import Usuario as DBUsuario, TipoUsuario, StatusUsuario
 from database import get_db
-from datetime import datetime
+from datetime import datetime, timedelta
+from jose import jwt, JWTError
 import os
 import shutil
 from pathlib import Path
-from microsoft_auth import validate_email, get_user_info
+from microsoft_auth import microsoft_oauth, validate_email, get_user_info
 
 router = APIRouter()
+
+# Configurações JWT
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "sua-chave-secreta-super-segura-aqui-12345")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+# Cache temporário para estados OAuth (em produção, usar Redis ou banco)
+oauth_states = {}
+
+def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
+    """
+    Cria um token JWT com os dados do usuário.
+    
+    Args:
+        data: Dados a serem codificados no token
+        expires_delta: Tempo de expiração do token
+        
+    Returns:
+        Token JWT assinado
+    """
+    to_encode = data.copy()
+    
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    to_encode.update({"exp": expire})
+    
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 def detectar_tipo_usuario(email: str) -> TipoUsuario:
     """
     Detecta o tipo de usuário baseado no domínio do email:
     - @alunos -> aluno
-    - @orientador.ibmec.edu.br -> orientador
+    - @orientador -> orientador
     - @professores -> orientador
-    - @coordenador -> coordenador (fallback)
+    - @coordenador -> coordenador
     """
     email_lower = email.lower()
     
     if "@alunos" in email_lower:
         return TipoUsuario.aluno
-    elif "@orientador.ibmec.edu.br" in email_lower or "@orientador" in email_lower:
-        return TipoUsuario.orientador
-    elif "@professores" in email_lower:
+    elif "@orientador" in email_lower or "@professor" in email_lower:
         return TipoUsuario.orientador
     elif "@coordenador" in email_lower:
         return TipoUsuario.coordenador
@@ -33,85 +64,249 @@ def detectar_tipo_usuario(email: str) -> TipoUsuario:
         # Default para aluno se não identificar
         return TipoUsuario.aluno
 
-@router.post("/login")
-async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
+@router.get("/login")
+async def oauth_login():
     """
-    Endpoint de login/registro unificado com validação Microsoft.
-    - Valida email institucional via Microsoft Graph API
-    - Se o usuário existir no banco: retorna dados + is_new_user=false
-    - Se não existir: cria registro básico + retorna is_new_user=true
+    Endpoint que inicia o fluxo OAuth 2.0 com Microsoft.
+    Redireciona o usuário para a página de login da Microsoft.
     """
+    try:
+        # Gerar URL de autorização
+        auth_data = microsoft_oauth.get_authorization_url()
+        
+        authorization_url = auth_data["authorization_url"]
+        state = auth_data["state"]
+        
+        # Armazenar state para validação posterior (em produção, usar Redis/DB)
+        oauth_states[state] = {
+            "created_at": datetime.utcnow(),
+            "used": False
+        }
+        
+        print(f"🔐 Redirecionando para login Microsoft (state: {state[:8]}...)")
+        
+        # Redirecionar para Microsoft
+        return RedirectResponse(url=authorization_url)
+        
+    except Exception as e:
+        print(f"❌ Erro ao gerar URL de autorização: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao iniciar autenticação Microsoft: {str(e)}"
+        )
+
+@router.get("/callback")
+async def oauth_callback(
+    code: str = Query(...),
+    state: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint de callback OAuth 2.0.
+    Recebe o código de autorização da Microsoft e troca por token de acesso.
+    """
+    try:
+        # Validar state (proteção CSRF)
+        if state not in oauth_states or oauth_states[state]["used"]:
+            print(f"❌ State inválido ou já usado: {state}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="State de autenticação inválido"
+            )
+        
+        # Marcar state como usado
+        oauth_states[state]["used"] = True
+        
+        print(f"✅ State validado: {state[:8]}...")
+        
+        # Trocar código por token de acesso
+        print(f"🔄 Trocando código por token...")
+        token_response = await microsoft_oauth.exchange_code_for_token(code)
+        
+        access_token = token_response.get("access_token")
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Falha ao obter token de acesso"
+            )
+        
+        # Obter informações do usuário
+        print(f"👤 Obtendo informações do usuário...")
+        user_info = await microsoft_oauth.get_user_info_from_token(access_token)
+        
+        email = user_info.get("mail") or user_info.get("userPrincipalName")
+        display_name = user_info.get("displayName", "")
+        given_name = user_info.get("givenName", "")
+        surname = user_info.get("surname", "")
+        
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email não encontrado no perfil Microsoft"
+            )
+        
+        print(f"✅ Usuário Microsoft: {display_name} ({email})")
+        
+        # Verificar se é email institucional
+        if "ibmec.edu.br" not in email.lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acesso permitido apenas para emails institucionais (@ibmec.edu.br)"
+            )
+        
+        # Buscar ou criar usuário no banco de dados
+        user_data = db.query(DBUsuario).filter(DBUsuario.email == email).first()
+        is_new_user = False
+        
+        if not user_data:
+            # Novo usuário - criar registro
+            is_new_user = True
+            tipo = detectar_tipo_usuario(email)
+            
+            user_data = DBUsuario(
+                email=email,
+                senha="",  # Sem senha - apenas OAuth
+                nome=display_name or f"{given_name} {surname}".strip() or email.split('@')[0],
+                tipo=tipo,
+                status=StatusUsuario.ativo
+            )
+            
+            db.add(user_data)
+            db.commit()
+            db.refresh(user_data)
+            
+            print(f"✅ Novo usuário criado: {user_data.email} (tipo: {tipo.value})")
+        else:
+            print(f"✅ Usuário existente: {user_data.email}")
+        
+        # Criar JWT token
+        token_data = {
+            "sub": user_data.email,
+            "user_id": user_data.id,
+            "tipo": user_data.tipo.value,
+            "nome": user_data.nome
+        }
+        
+        jwt_token = create_access_token(
+            data=token_data,
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        
+        # Preparar dados do usuário
+        user_response = {
+            "id": user_data.id,
+            "email": user_data.email,
+            "nome": user_data.nome,
+            "cpf": user_data.cpf,
+            "telefone": user_data.telefone,
+            "tipo": user_data.tipo.value,
+            "status": user_data.status.value,
+            "curso": user_data.curso,
+            "unidade": user_data.unidade,
+            "matricula": user_data.matricula,
+            "cr": user_data.cr,
+            "departamento": user_data.departamento,
+            "area_pesquisa": user_data.area_pesquisa,
+            "titulacao": user_data.titulacao,
+            "vagas_disponiveis": user_data.vagas_disponiveis
+        }
+        
+        # Redirecionar para frontend com token e dados
+        frontend_url = microsoft_oauth.frontend_url
+        
+        # Codificar dados do usuário em URL-safe base64
+        import json
+        import base64
+        user_json = json.dumps(user_response)
+        user_encoded = base64.urlsafe_b64encode(user_json.encode()).decode()
+        
+        redirect_url = f"{frontend_url}/auth/callback?token={jwt_token}&user={user_encoded}&is_new_user={str(is_new_user).lower()}"
+        
+        print(f"🎉 Autenticação concluída! Redirecionando para frontend...")
+        
+        return RedirectResponse(url=redirect_url)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erro no callback OAuth: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Redirecionar para página de erro no frontend
+        frontend_url = microsoft_oauth.frontend_url
+        error_url = f"{frontend_url}/login?error={str(e)}"
+        return RedirectResponse(url=error_url)
+
+@router.post("/legacy-login")
+async def legacy_login(credentials: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Endpoint de login legado (compatibilidade com formulário antigo).
+    DEPRECATED: Use OAuth flow (/auth/login) para novos logins.
+    """
+    print(f"⚠️ Usando login legado para: {credentials.email}")
     
-    # ETAPA 1: Validar email institucional com Microsoft Graph API
-    print(f"🔍 Validando email institucional: {credentials.email}")
+    # Validar email institucional
     validation_result = validate_email(credentials.email)
     
     if not validation_result['valid']:
-        # Email não é válido ou não existe no Azure AD
         error_message = validation_result.get('error', 'Email institucional inválido')
         
-        # Se o erro for por credenciais não configuradas, permitir login (modo desenvolvimento)
-        if 'indisponível' in error_message or 'desenvolvimento' in error_message:
-            print(f"⚠️ Modo desenvolvimento: Validação Microsoft ignorada")
-        else:
-            print(f"❌ Validação falhou: {error_message}")
+        if 'indisponível' not in error_message and 'desenvolvimento' not in error_message:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=error_message
             )
     
-    # Email validado com sucesso
-    if validation_result.get('exists'):
-        print(f"✅ Email validado via Microsoft Azure AD")
-        microsoft_user_data = validation_result.get('user_data', {})
-    else:
-        microsoft_user_data = {}
+    microsoft_user_data = validation_result.get('user_data', {})
     
-    # ETAPA 2: Buscar usuário no banco de dados local
+    # Buscar usuário no banco
     user_data = db.query(DBUsuario).filter(DBUsuario.email == credentials.email).first()
     is_new_user = False
     
     if not user_data:
-        # ETAPA 3: Novo usuário - criar registro básico
         is_new_user = True
-        
-        # Detectar tipo automaticamente baseado no email
         tipo = detectar_tipo_usuario(credentials.email)
         
-        # Usar nome do Microsoft se disponível, senão extrair do email
         if microsoft_user_data and microsoft_user_data.get('display_name'):
             nome_usuario = microsoft_user_data['display_name']
-        elif microsoft_user_data and microsoft_user_data.get('given_name'):
-            nome_usuario = microsoft_user_data['given_name']
-            if microsoft_user_data.get('surname'):
-                nome_usuario += f" {microsoft_user_data['surname']}"
         else:
             nome_usuario = credentials.email.split('@')[0]
         
+        # Pegar departamento do Microsoft se disponível
+        departamento_usuario = None
+        if microsoft_user_data and tipo != TipoUsuario.aluno:
+            departamento_usuario = microsoft_user_data.get('department')
+        
         user_data = DBUsuario(
             email=credentials.email,
-            senha=credentials.senha,  # Em produção, usar hash
+            senha=credentials.senha,
             nome=nome_usuario,
             tipo=tipo,
-            status=StatusUsuario.ativo,  # Novo usuário começa ativo
-            departamento=microsoft_user_data.get('department') if tipo != TipoUsuario.aluno else None
+            status=StatusUsuario.ativo,
+            departamento=departamento_usuario
         )
         
         db.add(user_data)
         db.commit()
         db.refresh(user_data)
-        
-        print(f"✅ Novo usuário criado: ID={user_data.id}, Email={user_data.email}, Nome={nome_usuario}, Tipo={user_data.tipo.value}")
     else:
-        # ETAPA 4: Usuário existente - verificar senha
         if user_data.senha != credentials.senha:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Email ou senha inválidos"
             )
-        print(f"✅ Usuário autenticado: ID={user_data.id}, Email={user_data.email}, Tipo={user_data.tipo.value}")
     
-    # Converter para dict e remover senha
+    # Criar JWT token
+    token_data = {
+        "sub": user_data.email,
+        "user_id": user_data.id,
+        "tipo": user_data.tipo.value,
+        "nome": user_data.nome
+    }
+    
+    jwt_token = create_access_token(data=token_data)
+    
     user_response = {
         "id": user_data.id,
         "email": user_data.email,
@@ -131,11 +326,8 @@ async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
         "vagas_disponiveis": user_data.vagas_disponiveis
     }
     
-    # Em produção, gerar token JWT real
-    fake_token = f"fake_jwt_token_for_{user_data.tipo.value}_{user_data.id}"
-    
     return {
-        "access_token": fake_token,
+        "access_token": jwt_token,
         "token_type": "bearer",
         "user": user_response,
         "is_new_user": is_new_user
