@@ -219,13 +219,27 @@ async def listar_inscricoes(
             "usuario_id": i.usuario_id,
             "nome": i.nome,
             "email": i.email,
+            "cpf": i.cpf,
+            "telefone": i.telefone,
             "curso": i.curso,
+            "matricula": i.matricula,
+            "unidade": i.unidade,
+            "cr": i.cr,
             "titulo_projeto": i.titulo_projeto,
             "area_conhecimento": i.area_conhecimento,
+            "descricao": i.descricao,
+            "objetivos": i.objetivos,
+            "metodologia": i.metodologia,
+            "resultados_esperados": i.resultados_esperados,
+            "arquivo_projeto": i.arquivo_projeto,
             "status": i.status.value,
             "data_submissao": i.data_submissao.isoformat() if i.data_submissao else None,
             "orientador_nome": i.orientador_nome,
-            "orientador_id": i.orientador_id
+            "orientador_id": i.orientador_id,
+            "feedback_orientador": i.feedback_orientador,
+            "data_avaliacao_orientador": i.data_avaliacao_orientador.isoformat() if i.data_avaliacao_orientador else None,
+            "feedback_coordenador": i.feedback_coordenador,
+            "data_avaliacao_coordenador": i.data_avaliacao_coordenador.isoformat() if i.data_avaliacao_coordenador else None
         }
         for i in inscricoes
     ]

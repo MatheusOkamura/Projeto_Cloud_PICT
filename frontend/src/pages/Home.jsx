@@ -29,7 +29,7 @@ const Home = () => {
                 </>
               )}
               {user && (
-                <Link to={`/dashboard/${user.tipo}`} className="btn-secondary text-lg">
+                <Link to={`/dashboard-${user.tipo}`} className="btn-secondary text-lg">
                   🎯 Acessar Meu Painel
                 </Link>
               )}

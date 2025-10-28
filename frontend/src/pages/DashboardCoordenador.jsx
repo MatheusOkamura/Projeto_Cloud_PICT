@@ -581,6 +581,35 @@ const DashboardCoordenador = () => {
                 </div>
               </div>
 
+              {/* Feedback do Orientador */}
+              {propostaDetalhada.feedback_orientador && (
+                <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                  <h4 className="font-bold text-green-800 mb-3 text-lg">✅ Avaliação do Orientador</h4>
+                  <div className="space-y-2 text-sm">
+                    {propostaDetalhada.data_avaliacao_orientador && (
+                      <div>
+                        <p className="text-gray-600 font-semibold">Data da Avaliação:</p>
+                        <p className="text-gray-800">
+                          {new Date(propostaDetalhada.data_avaliacao_orientador).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-gray-600 font-semibold">Parecer do Orientador:</p>
+                      <p className="text-gray-800 whitespace-pre-wrap bg-white p-3 rounded border border-green-200 mt-1">
+                        {propostaDetalhada.feedback_orientador}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Informações do Projeto */}
               <div className="bg-ibmec-gold-50 p-4 rounded-lg">
                 <h4 className="font-bold text-ibmec-blue-800 mb-3 text-lg">🔬 Informações do Projeto</h4>

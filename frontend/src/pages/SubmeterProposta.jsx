@@ -143,7 +143,7 @@ const SubmeterProposta = () => {
       alert('Proposta submetida com sucesso! Aguarde a análise da coordenação.');
       
       // Redirecionar para dashboard do aluno
-      navigate('/dashboard/aluno');
+      navigate('/dashboard-aluno');
       
     } catch (err) {
       console.error('Erro ao submeter proposta:', err);
@@ -391,7 +391,7 @@ const SubmeterProposta = () => {
             <div className="flex gap-4">
               <button
                 type="button"
-                onClick={() => navigate('/dashboard/aluno')}
+                onClick={() => navigate('/dashboard-aluno')}
                 className="btn-outline flex-1"
                 disabled={loading}
               >

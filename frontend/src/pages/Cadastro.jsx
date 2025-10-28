@@ -163,7 +163,7 @@ const Cadastro = () => {
       
       // Redirecionar para o dashboard após 2 segundos
       setTimeout(() => {
-        window.location.href = `/dashboard/${updatedUser.tipo}`;
+        window.location.href = `/dashboard-${updatedUser.tipo}`;
       }, 2000);
       
     } catch (error) {

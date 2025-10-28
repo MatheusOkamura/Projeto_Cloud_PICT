@@ -17,11 +17,11 @@ const Header = () => {
     
     switch (user.tipo) {
       case 'aluno':
-        return '/dashboard/aluno';
+        return '/dashboard-aluno';
       case 'orientador':
-        return '/dashboard/orientador';
+        return '/dashboard-orientador';
       case 'coordenador':
-        return '/dashboard/coordenador';
+        return '/dashboard-coordenador';
       default:
         return '/';
     }
