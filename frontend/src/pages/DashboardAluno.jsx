@@ -159,6 +159,112 @@ const DashboardAluno = () => {
                   <h2 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
                     📋 Status da Inscrição
                   </h2>
+                  
+                  {/* Linha Temporal */}
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-gray-600 mb-4">Progresso do Projeto</h3>
+                    <div className="relative">
+                      {/* Linha de fundo cinza */}
+                      <div className="absolute top-5 left-0 w-full h-1 bg-gray-200"></div>
+                      
+                      {/* Linha de progresso verde */}
+                      <div 
+                        className="absolute top-5 left-0 h-1 bg-green-500 transition-all duration-500"
+                        style={{
+                          width: 
+                            etapaAtual === 'artigo_final' ? '100%' :
+                            etapaAtual === 'apresentacao_amostra' ? '75%' :
+                            etapaAtual === 'relatorio_parcial' ? '50%' :
+                            inscricao.status === 'aprovada' ? '25%' :
+                            '0%'
+                        }}
+                      ></div>
+                      
+                      {/* Etapas */}
+                      <div className="relative flex justify-between">
+                        {/* 1. Proposta Enviada */}
+                        <div className="flex flex-col items-center z-10">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            inscricao.status !== 'pendente_orientador' && inscricao.status !== 'pendente_coordenador'
+                              ? 'bg-green-500 text-white' 
+                              : 'bg-gray-300 text-gray-600'
+                          }`}>
+                            {inscricao.status !== 'pendente_orientador' && inscricao.status !== 'pendente_coordenador' ? '✓' : '1'}
+                          </div>
+                          <p className="text-xs mt-2 text-center font-medium w-20">Proposta Enviada</p>
+                        </div>
+
+                        {/* 2. Aprovação */}
+                        <div className="flex flex-col items-center z-10">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            inscricao.status === 'aprovada' && !etapaAtual
+                              ? 'bg-green-500 text-white' 
+                              : inscricao.status === 'aprovada'
+                              ? 'bg-green-500 text-white'
+                              : 'bg-gray-300 text-gray-600'
+                          }`}>
+                            {inscricao.status === 'aprovada' ? '✓' : '2'}
+                          </div>
+                          <p className="text-xs mt-2 text-center font-medium w-20">Aprovação</p>
+                        </div>
+
+                        {/* 3. Relatório Parcial */}
+                        <div className="flex flex-col items-center z-10">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            etapaAtual === 'relatorio_parcial'
+                              ? 'bg-blue-500 text-white animate-pulse' 
+                              : etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final'
+                              ? 'bg-green-500 text-white'
+                              : 'bg-gray-300 text-gray-600'
+                          }`}>
+                            {etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final' ? '✓' : '3'}
+                          </div>
+                          <p className="text-xs mt-2 text-center font-medium w-20">Relatório Parcial</p>
+                        </div>
+
+                        {/* 4. Apresentação */}
+                        <div className="flex flex-col items-center z-10">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            etapaAtual === 'apresentacao_amostra'
+                              ? 'bg-blue-500 text-white animate-pulse' 
+                              : etapaAtual === 'artigo_final'
+                              ? 'bg-green-500 text-white'
+                              : 'bg-gray-300 text-gray-600'
+                          }`}>
+                            {etapaAtual === 'artigo_final' ? '✓' : '4'}
+                          </div>
+                          <p className="text-xs mt-2 text-center font-medium w-20">Apresentação</p>
+                        </div>
+
+                        {/* 5. Artigo Final */}
+                        <div className="flex flex-col items-center z-10">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            etapaAtual === 'artigo_final'
+                              ? 'bg-blue-500 text-white animate-pulse' 
+                              : 'bg-gray-300 text-gray-600'
+                          }`}>
+                            5
+                          </div>
+                          <p className="text-xs mt-2 text-center font-medium w-20">Artigo Final</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Legenda da etapa atual */}
+                    {etapaAtual && (
+                      <div className="mt-4 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
+                        <p className="text-sm font-semibold text-blue-800">
+                          📍 Etapa Atual: {
+                            etapaAtual === 'relatorio_parcial' ? 'Envio do Relatório Parcial' :
+                            etapaAtual === 'apresentacao_amostra' ? 'Apresentação na Amostra' :
+                            etapaAtual === 'artigo_final' ? 'Envio do Artigo Final' :
+                            'Aguardando início das etapas'
+                          }
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   <div className={`px-4 py-3 rounded-lg border-2 mb-6 ${getStatusColor(inscricao.status)}`}>
                     <p className="font-bold text-lg">{getStatusText(inscricao.status)}</p>
                   </div>
