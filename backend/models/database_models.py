@@ -16,9 +16,11 @@ class StatusUsuario(str, enum.Enum):
     inativo = "inativo"
 
 class StatusInscricao(str, enum.Enum):
-    pendente = "pendente"
-    aprovada = "aprovada"
-    rejeitada = "rejeitada"
+    pendente_orientador = "pendente_orientador"  # Aguardando aprovação do orientador
+    pendente_coordenador = "pendente_coordenador"  # Aprovada pelo orientador, aguardando coordenador
+    aprovada = "aprovada"  # Aprovada pelo coordenador
+    rejeitada_orientador = "rejeitada_orientador"  # Rejeitada pelo orientador
+    rejeitada_coordenador = "rejeitada_coordenador"  # Rejeitada pelo coordenador
 
 class EtapaProjeto(str, enum.Enum):
     inscricao = "inscricao"
@@ -100,10 +102,14 @@ class Inscricao(Base):
     orientador_nome = Column(String, nullable=True)
     
     # Status e datas
-    status = Column(SQLEnum(StatusInscricao), default=StatusInscricao.pendente)
+    status = Column(SQLEnum(StatusInscricao), default=StatusInscricao.pendente_orientador)
     feedback = Column(Text, nullable=True)
+    feedback_orientador = Column(Text, nullable=True)
+    feedback_coordenador = Column(Text, nullable=True)
     data_submissao = Column(DateTime, default=datetime.now)
-    data_avaliacao = Column(DateTime, nullable=True)
+    data_avaliacao_orientador = Column(DateTime, nullable=True)
+    data_avaliacao_coordenador = Column(DateTime, nullable=True)
+    data_avaliacao = Column(DateTime, nullable=True)  # Mantém por compatibilidade
     
     # Relacionamento
     usuario = relationship("Usuario", back_populates="inscricoes", foreign_keys=[usuario_id])

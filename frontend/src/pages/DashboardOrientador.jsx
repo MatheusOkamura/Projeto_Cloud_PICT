@@ -4,7 +4,7 @@ import Card from '../components/Card';
 
 const DashboardOrientador = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('alunos');
+  const [activeTab, setActiveTab] = useState('propostas');
   const [alunos, setAlunos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -13,6 +13,13 @@ const DashboardOrientador = () => {
   const [relatorios, setRelatorios] = useState([]);
   const [uploadState, setUploadState] = useState({ mes: '', descricao: '', arquivo: null, sending: false });
   const [etapaAtual, setEtapaAtual] = useState('');
+  
+  // Estados para propostas pendentes
+  const [propostasPendentes, setPropostasPendentes] = useState([]);
+  const [loadingPropostas, setLoadingPropostas] = useState(false);
+  const [selectedProposta, setSelectedProposta] = useState(null);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [avaliando, setAvaliando] = useState(false);
 
   useEffect(() => {
     const fetchAlunos = async () => {
@@ -29,6 +36,91 @@ const DashboardOrientador = () => {
     };
     if (user?.id) fetchAlunos();
   }, [user]);
+
+  // Buscar propostas pendentes
+  useEffect(() => {
+    const fetchPropostasPendentes = async () => {
+      if (!user?.id) return;
+      setLoadingPropostas(true);
+      try {
+        const res = await fetch(`http://localhost:8000/api/inscricoes/orientador/${user.id}/pendentes`);
+        if (!res.ok) throw new Error('Falha ao carregar propostas');
+        const data = await res.json();
+        setPropostasPendentes(data.propostas || []);
+      } catch (err) {
+        console.error('Erro ao carregar propostas:', err);
+      } finally {
+        setLoadingPropostas(false);
+      }
+    };
+    
+    fetchPropostasPendentes();
+    // Atualizar a cada 30 segundos
+    const interval = setInterval(fetchPropostasPendentes, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const abrirModalProposta = (proposta) => {
+    setSelectedProposta(proposta);
+    setModalAberto(true);
+  };
+
+  const fecharModal = () => {
+    setModalAberto(false);
+    setSelectedProposta(null);
+  };
+
+  const avaliarProposta = async (aprovar, feedback = '') => {
+    if (!selectedProposta) return;
+    
+    setAvaliando(true);
+    try {
+      const formData = new URLSearchParams();
+      formData.append('aprovar', aprovar.toString());
+      if (feedback) formData.append('feedback', feedback);
+
+      console.log('Enviando avaliação:', {
+        proposta_id: selectedProposta.id,
+        aprovar: aprovar,
+        feedback: feedback
+      });
+
+      const res = await fetch(
+        `http://localhost:8000/api/inscricoes/${selectedProposta.id}/orientador/avaliar`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString(),
+        }
+      );
+
+      console.log('Resposta:', res.status);
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('Erro:', errorData);
+        throw new Error(errorData.detail || 'Falha ao avaliar proposta');
+      }
+
+      const data = await res.json();
+      console.log('Sucesso:', data);
+      alert(data.message);
+      
+      // Recarregar lista de propostas
+      const resProp = await fetch(`http://localhost:8000/api/inscricoes/orientador/${user.id}/pendentes`);
+      const dataProp = await resProp.json();
+      setPropostasPendentes(dataProp.propostas || []);
+      
+      fecharModal();
+    } catch (err) {
+      console.error('Erro ao avaliar:', err);
+      alert('Erro: ' + err.message);
+    } finally {
+      setAvaliando(false);
+    }
+  };
 
   const openAluno = async (aluno) => {
     setSelectedAluno(aluno);
@@ -134,7 +226,7 @@ const DashboardOrientador = () => {
           <Card>
             <div className="text-center">
               <div className="text-4xl mb-2">⏳</div>
-              <p className="text-3xl font-bold text-yellow-600">0</p>
+              <p className="text-3xl font-bold text-yellow-600">{propostasPendentes.length}</p>
               <p className="text-gray-600 text-sm">Propostas Pendentes</p>
             </div>
           </Card>
@@ -163,6 +255,21 @@ const DashboardOrientador = () => {
           <div className="border-b border-gray-300">
             <div className="flex space-x-4">
               <button
+                onClick={() => setActiveTab('propostas')}
+                className={`px-6 py-3 font-semibold transition relative ${
+                  activeTab === 'propostas'
+                    ? 'border-b-4 border-ibmec-blue-600 text-ibmec-blue-700'
+                    : 'text-gray-600 hover:text-ibmec-blue-600'
+                }`}
+              >
+                📝 Propostas Pendentes
+                {propostasPendentes.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                    {propostasPendentes.length}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => setActiveTab('alunos')}
                 className={`px-6 py-3 font-semibold transition ${
                   activeTab === 'alunos'
@@ -189,6 +296,106 @@ const DashboardOrientador = () => {
         </div>
 
         {/* Conteúdo das Tabs */}
+        {activeTab === 'propostas' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-ibmec-blue-800">Propostas Aguardando sua Aprovação</h2>
+              {propostasPendentes.length > 0 && (
+                <span className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-full font-semibold">
+                  {propostasPendentes.length} {propostasPendentes.length === 1 ? 'proposta' : 'propostas'}
+                </span>
+              )}
+            </div>
+
+            {loadingPropostas ? (
+              <Card>
+                <div className="text-center py-8 text-gray-600">Carregando propostas...</div>
+              </Card>
+            ) : propostasPendentes.length === 0 ? (
+              <Card>
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">✅</div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                    Nenhuma proposta pendente
+                  </h3>
+                  <p className="text-gray-600">
+                    Você não tem propostas aguardando avaliação no momento.
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <div className="grid gap-6">
+                {propostasPendentes.map((proposta) => (
+                  <Card key={proposta.id}>
+                    <div className="flex flex-col gap-4">
+                      {/* Header da proposta */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-xl font-bold text-ibmec-blue-700">
+                              {proposta.titulo_projeto}
+                            </h3>
+                            <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">
+                              ⏳ Pendente
+                            </span>
+                          </div>
+                          <p className="text-gray-600 mb-1">
+                            <strong>Aluno:</strong> {proposta.nome}
+                          </p>
+                          <p className="text-gray-600 mb-1">
+                            <strong>Email:</strong> {proposta.email}
+                          </p>
+                          <p className="text-gray-600 mb-1">
+                            <strong>Curso:</strong> {proposta.curso}
+                          </p>
+                          <p className="text-gray-600 mb-1">
+                            <strong>Área:</strong> {proposta.area_conhecimento}
+                          </p>
+                          <p className="text-gray-500 text-sm">
+                            <strong>Submetida em:</strong>{' '}
+                            {new Date(proposta.data_submissao).toLocaleString('pt-BR')}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Resumo da proposta */}
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-semibold text-gray-700 mb-2">📝 Descrição:</h4>
+                        <p className="text-gray-600 text-sm mb-3">
+                          {proposta.descricao.length > 200
+                            ? proposta.descricao.substring(0, 200) + '...'
+                            : proposta.descricao}
+                        </p>
+
+                        {proposta.objetivos && (
+                          <>
+                            <h4 className="font-semibold text-gray-700 mb-2 mt-3">🎯 Objetivos:</h4>
+                            <p className="text-gray-600 text-sm">
+                              {proposta.objetivos.length > 150
+                                ? proposta.objetivos.substring(0, 150) + '...'
+                                : proposta.objetivos}
+                            </p>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Botões de ação */}
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={() => abrirModalProposta(proposta)}
+                          className="flex-1 bg-ibmec-blue-600 hover:bg-ibmec-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition"
+                        >
+                          📋 Ver Detalhes Completos
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'alunos' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-ibmec-blue-800">Alunos sob sua Orientação</h2>
@@ -337,6 +544,193 @@ const DashboardOrientador = () => {
           </div>
         )}
       </div>
+
+      {/* Modal de Avaliação de Proposta */}
+      {modalAberto && selectedProposta && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header do Modal */}
+            <div className="sticky top-0 bg-gradient-to-r from-ibmec-blue-600 to-ibmec-blue-700 text-white p-6 rounded-t-2xl">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">{selectedProposta.titulo_projeto}</h2>
+                  <p className="text-ibmec-blue-100">Avaliação de Proposta de Iniciação Científica</p>
+                </div>
+                <button
+                  onClick={fecharModal}
+                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Conteúdo do Modal */}
+            <div className="p-6 space-y-6">
+              {/* Informações do Aluno */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-bold text-ibmec-blue-700 mb-3">👨‍🎓 Informações do Aluno</h3>
+                <div className="grid md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600">Nome:</span>
+                    <p className="font-semibold text-gray-800">{selectedProposta.nome}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Email:</span>
+                    <p className="font-semibold text-gray-800">{selectedProposta.email}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Curso:</span>
+                    <p className="font-semibold text-gray-800">{selectedProposta.curso}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Matrícula:</span>
+                    <p className="font-semibold text-gray-800">{selectedProposta.matricula || 'N/A'}</p>
+                  </div>
+                  {selectedProposta.cr && (
+                    <div>
+                      <span className="text-gray-600">CR:</span>
+                      <p className="font-semibold text-gray-800">{selectedProposta.cr.toFixed(2)}</p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-gray-600">Data de Submissão:</span>
+                    <p className="font-semibold text-gray-800">
+                      {new Date(selectedProposta.data_submissao).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Detalhes do Projeto */}
+              <div>
+                <h3 className="text-lg font-bold text-ibmec-blue-700 mb-3">📋 Detalhes do Projeto</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Área de Conhecimento:
+                    </label>
+                    <p className="bg-gray-50 p-3 rounded text-gray-800">{selectedProposta.area_conhecimento}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Descrição:
+                    </label>
+                    <p className="bg-gray-50 p-3 rounded text-gray-800 whitespace-pre-wrap">
+                      {selectedProposta.descricao}
+                    </p>
+                  </div>
+
+                  {selectedProposta.objetivos && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Objetivos:
+                      </label>
+                      <p className="bg-gray-50 p-3 rounded text-gray-800 whitespace-pre-wrap">
+                        {selectedProposta.objetivos}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedProposta.metodologia && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Metodologia:
+                      </label>
+                      <p className="bg-gray-50 p-3 rounded text-gray-800 whitespace-pre-wrap">
+                        {selectedProposta.metodologia}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedProposta.resultados_esperados && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Resultados Esperados:
+                      </label>
+                      <p className="bg-gray-50 p-3 rounded text-gray-800 whitespace-pre-wrap">
+                        {selectedProposta.resultados_esperados}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedProposta.arquivo_projeto && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Arquivo Anexado:
+                      </label>
+                      <a
+                        href={`http://localhost:8000/uploads/propostas/${selectedProposta.arquivo_projeto}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded transition"
+                      >
+                        📎 {selectedProposta.arquivo_projeto}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Área de Feedback */}
+              <div>
+                <h3 className="text-lg font-bold text-ibmec-blue-700 mb-3">💬 Feedback (opcional)</h3>
+                <textarea
+                  id="feedback-orientador"
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent"
+                  rows="4"
+                  placeholder="Digite aqui seus comentários sobre a proposta (opcional)..."
+                ></textarea>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="flex gap-4 pt-4 border-t">
+                <button
+                  onClick={() => {
+                    const feedback = document.getElementById('feedback-orientador').value;
+                    if (window.confirm('Tem certeza que deseja APROVAR esta proposta? Ela será encaminhada para o coordenador.')) {
+                      avaliarProposta(true, feedback);
+                    }
+                  }}
+                  disabled={avaliando}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-4 px-6 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  {avaliando ? '⏳ Processando...' : '✅ Aprovar Proposta'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    const feedback = document.getElementById('feedback-orientador').value;
+                    if (!feedback.trim()) {
+                      alert('Por favor, forneça um feedback explicando o motivo da rejeição.');
+                      return;
+                    }
+                    if (window.confirm('Tem certeza que deseja REJEITAR esta proposta? Esta ação não pode ser desfeita.')) {
+                      avaliarProposta(false, feedback);
+                    }
+                  }}
+                  disabled={avaliando}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-4 px-6 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  {avaliando ? '⏳ Processando...' : '❌ Rejeitar Proposta'}
+                </button>
+
+                <button
+                  onClick={fecharModal}
+                  disabled={avaliando}
+                  className="bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 text-gray-700 font-semibold py-4 px-6 rounded-lg transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

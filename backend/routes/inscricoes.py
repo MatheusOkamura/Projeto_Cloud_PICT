@@ -78,7 +78,7 @@ async def submeter_proposta(
         metodologia=metodologia,
         resultados_esperados=resultados_esperados,
         arquivo_projeto=arquivo_nome,
-        status=StatusInscricao.pendente,
+        status=StatusInscricao.pendente_orientador,  # Começa aguardando orientador
         data_submissao=datetime.now(),
         orientador_id=orientador_id,
         orientador_nome=orientador_nome
@@ -183,9 +183,14 @@ async def obter_inscricao_usuario(usuario_id: int, db: Session = Depends(get_db)
             "arquivo_projeto": inscricao.arquivo_projeto,
             "status": inscricao.status.value,
             "feedback": inscricao.feedback,
+            "feedback_orientador": inscricao.feedback_orientador,
+            "feedback_coordenador": inscricao.feedback_coordenador,
             "data_submissao": inscricao.data_submissao.isoformat() if inscricao.data_submissao else None,
+            "data_avaliacao_orientador": inscricao.data_avaliacao_orientador.isoformat() if inscricao.data_avaliacao_orientador else None,
+            "data_avaliacao_coordenador": inscricao.data_avaliacao_coordenador.isoformat() if inscricao.data_avaliacao_coordenador else None,
             "data_avaliacao": inscricao.data_avaliacao.isoformat() if inscricao.data_avaliacao else None,
-            "orientador_nome": inscricao.orientador_nome
+            "orientador_nome": inscricao.orientador_nome,
+            "orientador_id": inscricao.orientador_id
         }
     }
 
@@ -219,10 +224,83 @@ async def listar_inscricoes(
             "area_conhecimento": i.area_conhecimento,
             "status": i.status.value,
             "data_submissao": i.data_submissao.isoformat() if i.data_submissao else None,
-            "orientador_nome": i.orientador_nome
+            "orientador_nome": i.orientador_nome,
+            "orientador_id": i.orientador_id
         }
         for i in inscricoes
     ]
+
+@router.get("/orientador/{orientador_id}/pendentes")
+async def listar_propostas_pendentes_orientador(
+    orientador_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Listar propostas que aguardam avaliação de um orientador específico.
+    """
+    inscricoes = db.query(InscricaoModel).filter(
+        InscricaoModel.orientador_id == orientador_id,
+        InscricaoModel.status == StatusInscricao.pendente_orientador
+    ).all()
+    
+    return {
+        "total": len(inscricoes),
+        "propostas": [
+            {
+                "id": i.id,
+                "usuario_id": i.usuario_id,
+                "nome": i.nome,
+                "email": i.email,
+                "curso": i.curso,
+                "titulo_projeto": i.titulo_projeto,
+                "area_conhecimento": i.area_conhecimento,
+                "descricao": i.descricao,
+                "objetivos": i.objetivos,
+                "metodologia": i.metodologia,
+                "resultados_esperados": i.resultados_esperados,
+                "arquivo_projeto": i.arquivo_projeto,
+                "status": i.status.value,
+                "data_submissao": i.data_submissao.isoformat() if i.data_submissao else None
+            }
+            for i in inscricoes
+        ]
+    }
+
+@router.get("/coordenador/pendentes")
+async def listar_propostas_pendentes_coordenador(db: Session = Depends(get_db)):
+    """
+    Listar propostas que aguardam avaliação do coordenador.
+    """
+    inscricoes = db.query(InscricaoModel).filter(
+        InscricaoModel.status == StatusInscricao.pendente_coordenador
+    ).all()
+    
+    return {
+        "total": len(inscricoes),
+        "propostas": [
+            {
+                "id": i.id,
+                "usuario_id": i.usuario_id,
+                "nome": i.nome,
+                "email": i.email,
+                "curso": i.curso,
+                "titulo_projeto": i.titulo_projeto,
+                "area_conhecimento": i.area_conhecimento,
+                "descricao": i.descricao,
+                "objetivos": i.objetivos,
+                "metodologia": i.metodologia,
+                "resultados_esperados": i.resultados_esperados,
+                "arquivo_projeto": i.arquivo_projeto,
+                "status": i.status.value,
+                "orientador_id": i.orientador_id,
+                "orientador_nome": i.orientador_nome,
+                "data_submissao": i.data_submissao.isoformat() if i.data_submissao else None,
+                "data_avaliacao_orientador": i.data_avaliacao_orientador.isoformat() if i.data_avaliacao_orientador else None,
+                "feedback_orientador": i.feedback_orientador
+            }
+            for i in inscricoes
+        ]
+    }
 
 @router.get("/{inscricao_id}")
 async def obter_inscricao(inscricao_id: int, db: Session = Depends(get_db)):
@@ -259,7 +337,11 @@ async def obter_inscricao(inscricao_id: int, db: Session = Depends(get_db)):
         "arquivo_projeto": inscricao.arquivo_projeto,
         "status": inscricao.status.value,
         "feedback": inscricao.feedback,
+        "feedback_orientador": inscricao.feedback_orientador,
+        "feedback_coordenador": inscricao.feedback_coordenador,
         "data_submissao": inscricao.data_submissao.isoformat() if inscricao.data_submissao else None,
+        "data_avaliacao_orientador": inscricao.data_avaliacao_orientador.isoformat() if inscricao.data_avaliacao_orientador else None,
+        "data_avaliacao_coordenador": inscricao.data_avaliacao_coordenador.isoformat() if inscricao.data_avaliacao_coordenador else None,
         "data_avaliacao": inscricao.data_avaliacao.isoformat() if inscricao.data_avaliacao else None,
         "orientador_id": inscricao.orientador_id,
         "orientador_nome": inscricao.orientador_nome
@@ -273,8 +355,8 @@ async def atualizar_status(
     db: Session = Depends(get_db)
 ):
     """
-    Atualizar status de uma inscrição.
-    Apenas coordenadores devem ter acesso (implementar verificação em produção).
+    Atualizar status de uma inscrição (rota legada).
+    DEPRECATED: Use as rotas específicas /orientador/avaliar ou /coordenador/avaliar
     """
     inscricao = db.query(InscricaoModel).filter(
         InscricaoModel.id == inscricao_id
@@ -292,7 +374,7 @@ async def atualizar_status(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Status inválido. Use: pendente, aprovada, rejeitada"
+            detail=f"Status inválido. Use: pendente_orientador, pendente_coordenador, aprovada, rejeitada_orientador, rejeitada_coordenador"
         )
     
     # Atualizar status da inscrição
@@ -331,6 +413,135 @@ async def atualizar_status(
         "message": "Status atualizado com sucesso",
         "inscricao_id": inscricao_id,
         "novo_status": status_enum.value
+    }
+
+@router.post("/{inscricao_id}/orientador/avaliar")
+async def orientador_avaliar(
+    inscricao_id: int,
+    aprovar: bool = Form(...),
+    feedback: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Orientador avalia a proposta (primeira etapa de aprovação).
+    
+    - aprovar=true: Aprova e envia para coordenador
+    - aprovar=false: Rejeita a proposta
+    """
+    print(f"🔍 Avaliando proposta {inscricao_id}: aprovar={aprovar}, feedback={feedback}")
+    
+    inscricao = db.query(InscricaoModel).filter(
+        InscricaoModel.id == inscricao_id
+    ).first()
+    
+    if not inscricao:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Inscrição não encontrada"
+        )
+    
+    # Verificar se está no status correto
+    if inscricao.status != StatusInscricao.pendente_orientador:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Proposta não está aguardando avaliação do orientador. Status atual: {inscricao.status.value}"
+        )
+    
+    # Atualizar status conforme decisão
+    if aprovar:
+        inscricao.status = StatusInscricao.pendente_coordenador
+        mensagem = "Proposta aprovada pelo orientador. Aguardando avaliação do coordenador."
+    else:
+        inscricao.status = StatusInscricao.rejeitada_orientador
+        mensagem = "Proposta rejeitada pelo orientador."
+    
+    inscricao.feedback_orientador = feedback
+    inscricao.data_avaliacao_orientador = datetime.now()
+    
+    db.commit()
+    db.refresh(inscricao)
+    
+    print(f"✅ Proposta avaliada: novo status = {inscricao.status.value}")
+    
+    return {
+        "message": mensagem,
+        "inscricao_id": inscricao_id,
+        "status": inscricao.status.value,
+        "proxima_etapa": "coordenador" if aprovar else None
+    }
+
+@router.post("/{inscricao_id}/coordenador/avaliar")
+async def coordenador_avaliar(
+    inscricao_id: int,
+    aprovar: bool = Form(...),
+    feedback: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Coordenador avalia a proposta (segunda etapa de aprovação).
+    
+    - aprovar=true: Aprova definitivamente e cria o projeto
+    - aprovar=false: Rejeita a proposta
+    """
+    print(f"🔍 Coordenador avaliando proposta {inscricao_id}: aprovar={aprovar}, feedback={feedback}")
+    
+    inscricao = db.query(InscricaoModel).filter(
+        InscricaoModel.id == inscricao_id
+    ).first()
+    
+    if not inscricao:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Inscrição não encontrada"
+        )
+    
+    # Verificar se está no status correto
+    if inscricao.status != StatusInscricao.pendente_coordenador:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Proposta não está aguardando avaliação do coordenador. Status atual: {inscricao.status.value}"
+        )
+    
+    # Atualizar status conforme decisão
+    if aprovar:
+        inscricao.status = StatusInscricao.aprovada
+        mensagem = "Proposta aprovada pelo coordenador. Projeto criado com sucesso!"
+        
+        # Criar o projeto
+        projeto_existente = db.query(Projeto).filter(
+            Projeto.inscricao_id == inscricao_id
+        ).first()
+        
+        if not projeto_existente:
+            novo_projeto = Projeto(
+                aluno_id=inscricao.usuario_id,
+                orientador_id=inscricao.orientador_id,
+                inscricao_id=inscricao_id,
+                titulo=inscricao.titulo_projeto,
+                area_conhecimento=inscricao.area_conhecimento,
+                descricao=inscricao.descricao,
+                objetivos=inscricao.objetivos,
+                metodologia=inscricao.metodologia,
+                etapa_atual=EtapaProjeto.desenvolvimento,
+                data_inicio=datetime.now()
+            )
+            db.add(novo_projeto)
+    else:
+        inscricao.status = StatusInscricao.rejeitada_coordenador
+        mensagem = "Proposta rejeitada pelo coordenador."
+    
+    inscricao.feedback_coordenador = feedback
+    inscricao.data_avaliacao_coordenador = datetime.now()
+    inscricao.data_avaliacao = datetime.now()  # Data final de avaliação
+    
+    db.commit()
+    db.refresh(inscricao)
+    
+    return {
+        "message": mensagem,
+        "inscricao_id": inscricao_id,
+        "status": inscricao.status.value,
+        "projeto_criado": aprovar
     }
 
 @router.delete("/{inscricao_id}")

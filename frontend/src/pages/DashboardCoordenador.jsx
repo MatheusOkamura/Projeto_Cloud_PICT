@@ -67,8 +67,8 @@ const DashboardCoordenador = () => {
   const estatisticas = {
     total: inscricoes.length,
     aprovados: inscricoes.filter(i => i.status === 'aprovada').length,
-    pendentes: inscricoes.filter(i => i.status === 'pendente' || i.status === 'em_analise').length,
-    rejeitados: inscricoes.filter(i => i.status === 'rejeitada').length,
+    pendentes: inscricoes.filter(i => i.status === 'pendente' || i.status === 'em_analise' || i.status === 'pendente_coordenador' || i.status === 'pendente_orientador').length,
+    rejeitados: inscricoes.filter(i => i.status === 'rejeitada' || i.status === 'rejeitada_orientador' || i.status === 'rejeitada_coordenador').length,
     alunos: inscricoes.filter(i => i.tipo === 'aluno' || i.usuario_id).length,
     orientadores: inscricoes.filter(i => i.tipo === 'orientador').length
   };
@@ -82,8 +82,12 @@ const DashboardCoordenador = () => {
       case 'aprovada':
         return 'bg-green-100 text-green-800';
       case 'pendente':
+      case 'pendente_orientador':
+      case 'pendente_coordenador':
         return 'bg-yellow-100 text-yellow-800';
       case 'rejeitada':
+      case 'rejeitada_orientador':
+      case 'rejeitada_coordenador':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -96,18 +100,48 @@ const DashboardCoordenador = () => {
 
   const enviarDecisao = async () => {
     try {
-      // Converter o status para o formato esperado pelo backend (feminino)
-      const statusBackend = feedbackModal.status === 'aprovado' ? 'aprovada' : 'rejeitada';
+      const aprovar = feedbackModal.status === 'aprovado';
       
-      const res = await fetch(`http://localhost:8000/api/inscricoes/${feedbackModal.id}/status?novo_status=${statusBackend}&feedback=${encodeURIComponent(feedbackModal.mensagem)}`, {
-        method: 'PATCH',
+      const formData = new URLSearchParams();
+      formData.append('aprovar', aprovar.toString());
+      if (feedbackModal.mensagem) {
+        formData.append('feedback', feedbackModal.mensagem);
+      }
+
+      console.log('Coordenador avaliando proposta:', {
+        proposta_id: feedbackModal.id,
+        aprovar: aprovar,
+        feedback: feedbackModal.mensagem
       });
-      if (!res.ok) throw new Error('Falha ao atualizar status');
+
+      const res = await fetch(
+        `http://localhost:8000/api/inscricoes/${feedbackModal.id}/coordenador/avaliar`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString(),
+        }
+      );
+
+      console.log('Resposta:', res.status);
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('Erro:', errorData);
+        throw new Error(errorData.detail || 'Falha ao avaliar proposta');
+      }
+
+      const data = await res.json();
+      console.log('Sucesso:', data);
+      
       setFeedbackModal({ open: false, id: null, status: 'aprovado', mensagem: '' });
       await loadInscricoes();
-      alert('Decisão registrada e mensagem enviada ao aluno.');
+      alert(data.message || 'Decisão registrada com sucesso!');
     } catch (err) {
-      alert('Erro ao registrar decisão');
+      console.error('Erro ao avaliar:', err);
+      alert('Erro: ' + err.message);
     }
   };
 
@@ -308,8 +342,8 @@ const DashboardCoordenador = () => {
                       >
                         👁️ Ver Detalhes Completos
                       </button>
-                      {/* Mostrar botões de aprovar/rejeitar apenas se o status for pendente ou em_analise */}
-                      {(inscricao.status === 'pendente' || inscricao.status === 'em_analise') && (
+                      {/* Mostrar botões de aprovar/rejeitar apenas se o status for pendente_coordenador */}
+                      {inscricao.status === 'pendente_coordenador' && (
                         <>
                           <button onClick={() => setFeedbackModal({ open: true, id: inscricao.id, status: 'aprovado', mensagem: '' })} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm">
                             ✅ Aprovar
@@ -615,8 +649,8 @@ const DashboardCoordenador = () => {
               <button className="btn-outline" onClick={fecharDetalhes}>
                 Fechar
               </button>
-              {/* Mostrar botões de aprovar/rejeitar apenas se o status for pendente ou em_analise */}
-              {(propostaDetalhada.status === 'pendente' || propostaDetalhada.status === 'em_analise') && (
+              {/* Mostrar botões de aprovar/rejeitar apenas se o status for pendente_coordenador */}
+              {propostaDetalhada.status === 'pendente_coordenador' && (
                 <>
                   <button 
                     onClick={() => {
