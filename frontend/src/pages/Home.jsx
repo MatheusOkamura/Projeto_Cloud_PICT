@@ -20,8 +20,8 @@ const Home = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {!user && (
                 <>
-                  <Link to="/login" className="btn-secondary text-lg">
-                    � Fazer Login
+                  <Link to="/cadastro" className="btn-secondary text-lg">
+                    📝 Inscreva-se
                   </Link>
                   <Link to="/sobre" className="btn-outline bg-white text-ibmec-blue-700 hover:bg-gray-100 text-lg">
                     📚 Saiba Mais

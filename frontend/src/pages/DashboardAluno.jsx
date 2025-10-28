@@ -248,22 +248,68 @@ const DashboardAluno = () => {
                   💬 Mensagens e Feedbacks
                 </h2>
                 
-                {(!inscricao.mensagens || inscricao.mensagens.length === 0) ? (
+                {(!inscricao.feedback_orientador && !inscricao.feedback_coordenador) ? (
                   <div className="text-center py-12">
                     <div className="text-6xl mb-4">📭</div>
                     <p className="text-gray-500">Nenhuma mensagem no momento</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {inscricao.mensagens.map((msg, index) => (
-                      <div key={index} className="bg-gray-50 p-4 rounded-lg">
-                        <div className="flex justify-between mb-2">
-                          <p className="font-semibold text-ibmec-blue-700">{msg.remetente}</p>
-                          <p className="text-sm text-gray-500">{msg.data}</p>
+                    {/* Feedback do Orientador */}
+                    {inscricao.feedback_orientador && (
+                      <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">✅</span>
+                            <div>
+                              <p className="font-bold text-green-800">Avaliação do Orientador</p>
+                              {inscricao.data_avaliacao_orientador && (
+                                <p className="text-sm text-gray-600">
+                                  {new Date(inscricao.data_avaliacao_orientador).toLocaleString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-gray-700">{msg.mensagem}</p>
+                        <div className="bg-white p-3 rounded border border-green-200 mt-2">
+                          <p className="text-gray-800 whitespace-pre-wrap">{inscricao.feedback_orientador}</p>
+                        </div>
                       </div>
-                    ))}
+                    )}
+
+                    {/* Feedback do Coordenador */}
+                    {inscricao.feedback_coordenador && (
+                      <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">🎓</span>
+                            <div>
+                              <p className="font-bold text-blue-800">Avaliação do Coordenador</p>
+                              {inscricao.data_avaliacao_coordenador && (
+                                <p className="text-sm text-gray-600">
+                                  {new Date(inscricao.data_avaliacao_coordenador).toLocaleString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-blue-200 mt-2">
+                          <p className="text-gray-800 whitespace-pre-wrap">{inscricao.feedback_coordenador}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </Card>

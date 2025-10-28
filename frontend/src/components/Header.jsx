@@ -61,7 +61,12 @@ const Header = () => {
               </>
             ) : (
               <>
-                <Link to="/login" className="hover:text-ibmec-gold-300 transition">Login</Link>
+                <Link 
+                  to="/cadastro" 
+                  className="bg-ibmec-gold-500 hover:bg-ibmec-gold-600 px-4 py-2 rounded-lg transition font-semibold"
+                >
+                  📝 Inscreva-se
+                </Link>
               </>
             )}
           </div>
@@ -113,11 +118,11 @@ const Header = () => {
             ) : (
               <>
                 <Link 
-                  to="/login" 
-                  className="block hover:text-ibmec-gold-300 transition"
+                  to="/cadastro" 
+                  className="block bg-ibmec-gold-500 hover:bg-ibmec-gold-600 px-4 py-2 rounded-lg transition font-semibold"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Login
+                  📝 Inscreva-se
                 </Link>
               </>
             )}
