@@ -29,17 +29,25 @@ export default function AuthCallback() {
         // Salvar no contexto
         handleOAuthCallback(token, userData, isNewUser);
 
-        // Verificar se é aluno e se precisa completar cadastro
-        const precisaCompletarCadastro = userData.tipo === 'aluno' && (
+        // Verificar se precisa completar cadastro
+        const alunoSemDados = userData.tipo === 'aluno' && (
           !userData.curso || 
           !userData.matricula || 
           !userData.cpf || 
           !userData.telefone
         );
+        
+        const orientadorSemDados = userData.tipo === 'orientador' && (
+          !userData.nome ||
+          !userData.departamento ||
+          !userData.telefone
+        );
+        
+        const precisaCompletarCadastro = alunoSemDados || orientadorSemDados;
 
         // Redirecionar baseado no tipo de usuário e status de cadastro
         if (precisaCompletarCadastro) {
-          // Aluno sem dados completos - completar cadastro
+          // Usuário sem dados completos - completar cadastro
           navigate('/cadastro', { 
             state: { 
               email: userData.email, 

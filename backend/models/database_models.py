@@ -106,6 +106,8 @@ class Inscricao(Base):
     feedback = Column(Text, nullable=True)
     feedback_orientador = Column(Text, nullable=True)
     feedback_coordenador = Column(Text, nullable=True)
+    status_aprovacao_orientador = Column(String, default="pendente")  # pendente, aprovado, rejeitado
+    status_aprovacao_coordenador = Column(String, default="pendente")  # pendente, aprovado, rejeitado
     data_submissao = Column(DateTime, default=datetime.now)
     data_avaliacao_orientador = Column(DateTime, nullable=True)
     data_avaliacao_coordenador = Column(DateTime, nullable=True)
@@ -151,6 +153,15 @@ class Entrega(Base):
     
     data_entrega = Column(DateTime, default=datetime.now)
     prazo = Column(DateTime, nullable=True)
+    
+    # Campos de aprovação
+    status_aprovacao_orientador = Column(String, default="pendente")  # pendente, aprovado, rejeitado
+    feedback_orientador = Column(Text, nullable=True)
+    data_avaliacao_orientador = Column(DateTime, nullable=True)
+    
+    status_aprovacao_coordenador = Column(String, default="pendente")  # pendente, aprovado, rejeitado
+    feedback_coordenador = Column(Text, nullable=True)
+    data_avaliacao_coordenador = Column(DateTime, nullable=True)
     
     # Relacionamentos
     projeto = relationship("Projeto", back_populates="entregas")

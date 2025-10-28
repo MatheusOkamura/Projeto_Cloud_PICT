@@ -7,6 +7,31 @@ const EnviarArtigoFinal = () => {
   const [descricao, setDescricao] = useState('');
   const [arquivo, setArquivo] = useState(null);
   const [sending, setSending] = useState(false);
+  const [jaEnviou, setJaEnviou] = useState(false);
+  const [entregaExistente, setEntregaExistente] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Verificar se já enviou o artigo
+  useState(() => {
+    const verificarEntrega = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const res = await fetch(`http://localhost:8000/api/alunos/${user.id}/verificar-entrega/artigo_final`);
+        if (res.ok) {
+          const data = await res.json();
+          setJaEnviou(data.ja_enviou);
+          setEntregaExistente(data.entrega);
+        }
+      } catch (err) {
+        console.error('Erro ao verificar entrega:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    verificarEntrega();
+  }, [user]);
 
   const handleFileChange = (e) => {
     setArquivo(e.target.files[0]);
@@ -25,8 +50,20 @@ const EnviarArtigoFinal = () => {
         method: 'POST',
         body: fd,
       });
-      if (!res.ok) throw new Error('Falha ao enviar artigo final');
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.detail || 'Falha ao enviar artigo final');
+      }
+      
       alert('Artigo final enviado com sucesso!');
+      setJaEnviou(true);
+      setEntregaExistente({
+        titulo: 'Artigo Final',
+        data_entrega: new Date().toISOString(),
+        arquivo: data.arquivo
+      });
       setDescricao('');
       setArquivo(null);
     } catch (err) {
@@ -35,6 +72,96 @@ const EnviarArtigoFinal = () => {
       setSending(false);
     }
   };
+
+  // Mostrar loading
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">
+        <div className="container mx-auto max-w-3xl">
+          <Card>
+            <div className="text-center py-12">
+              <div className="animate-spin text-6xl mb-4">⏳</div>
+              <p className="text-gray-600">Carregando...</p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar mensagem de artigo já enviado
+  if (jaEnviou && entregaExistente) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">
+        <div className="container mx-auto max-w-3xl">
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="text-3xl">✅</span>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-ibmec-blue-800">Artigo Enviado</h1>
+                <p className="text-gray-600">Seu artigo final foi enviado com sucesso</p>
+              </div>
+            </div>
+          </div>
+
+          <Card>
+            <div className="text-center py-8">
+              <div className="text-6xl mb-6">🎓</div>
+              <h2 className="text-2xl font-bold text-green-600 mb-4">
+                Artigo Final Enviado!
+              </h2>
+              <p className="text-gray-700 mb-6">
+                Seu artigo foi enviado em{' '}
+                <strong>
+                  {new Date(entregaExistente.data_entrega).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </strong>
+              </p>
+              
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+                <div className="space-y-3 text-left">
+                  <div className="flex items-start gap-3">
+                    <span className="text-green-600">📎</span>
+                    <div>
+                      <p className="font-semibold text-gray-700">Arquivo:</p>
+                      <p className="text-sm text-gray-600">{entregaExistente.arquivo || 'Artigo Final'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded text-left mb-6">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">🎉</span>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-blue-800 mb-1">Parabéns!</h3>
+                    <p className="text-sm text-gray-700">
+                      Você concluiu todas as etapas do projeto de iniciação científica. 
+                      Seu orientador fará a avaliação final do trabalho.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => window.history.back()}
+                className="px-8 py-3 bg-ibmec-blue-600 text-white rounded-lg hover:bg-ibmec-blue-700 transition font-semibold"
+              >
+                ← Voltar ao Dashboard
+              </button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">

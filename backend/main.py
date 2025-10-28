@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from routes import auth, inscricoes, usuarios
 from routes import orientadores
 from routes import coordenadores
+from routes import alunos
 from config import settings, unidades
 from database import get_db
 from models.database_models import Curso, Usuario, TipoUsuario, StatusUsuario
@@ -32,6 +33,7 @@ app.include_router(inscricoes.router, prefix="/api/inscricoes", tags=["Inscriç�
 app.include_router(usuarios.router, prefix="/api", tags=["Usuários"])
 app.include_router(orientadores.router, prefix="/api", tags=["Orientadores"])
 app.include_router(coordenadores.router, prefix="/api", tags=["Coordenadores"])
+app.include_router(alunos.router, prefix="/api", tags=["Alunos"])
 
 @app.get("/")
 async def root():

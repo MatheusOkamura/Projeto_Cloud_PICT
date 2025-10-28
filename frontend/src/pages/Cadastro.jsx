@@ -145,6 +145,8 @@ const Cadastro = () => {
       }
 
       // Enviar dados para o backend
+      console.log('📤 Enviando dados para completar cadastro:', dadosCadastro);
+      
       const response = await fetch('http://localhost:8000/api/auth/completar-cadastro', {
         method: 'POST',
         headers: {
@@ -153,13 +155,16 @@ const Cadastro = () => {
         body: JSON.stringify(dadosCadastro)
       });
 
+      console.log('📥 Resposta recebida:', response.status, response.statusText);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ Erro do servidor:', errorData);
         throw new Error(errorData.detail || 'Erro ao completar cadastro');
       }
 
       const result = await response.json();
-      console.log('Cadastro completado:', result);
+      console.log('✅ Cadastro completado:', result);
 
       // Atualizar dados do usuário no localStorage com os dados retornados do backend
       const updatedUser = result.user;
@@ -173,8 +178,18 @@ const Cadastro = () => {
       }, 2000);
       
     } catch (error) {
-      console.error('Erro ao enviar:', error);
-      setError(error.message || 'Erro ao completar cadastro. Tente novamente.');
+      console.error('❌ Erro ao enviar:', error);
+      
+      // Mensagem de erro mais específica
+      let errorMessage = 'Erro ao completar cadastro. Tente novamente.';
+      
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = 'Não foi possível conectar ao servidor. Verifique se o backend está rodando.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);

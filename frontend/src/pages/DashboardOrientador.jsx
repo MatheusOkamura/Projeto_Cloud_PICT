@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
 
 const DashboardOrientador = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState('propostas');
   const [alunos, setAlunos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,6 +13,12 @@ const DashboardOrientador = () => {
   const [relatorios, setRelatorios] = useState([]);
   const [uploadState, setUploadState] = useState({ mes: '', descricao: '', arquivo: null, sending: false });
   const [etapaAtual, setEtapaAtual] = useState('');
+  const [userData, setUserData] = useState(user);
+  
+  // Estados para avaliação de entregas
+  const [entregaSelecionada, setEntregaSelecionada] = useState(null);
+  const [modalEntregaAberto, setModalEntregaAberto] = useState(false);
+  const [avaliandoEntrega, setAvaliandoEntrega] = useState(false);
   
   // Estados para propostas pendentes
   const [propostasPendentes, setPropostasPendentes] = useState([]);
@@ -20,6 +26,33 @@ const DashboardOrientador = () => {
   const [selectedProposta, setSelectedProposta] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [avaliando, setAvaliando] = useState(false);
+
+  // Buscar dados atualizados do usuário
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user?.id) return;
+      
+      try {
+        console.log('🔍 Buscando dados do orientador ID:', user.id);
+        const response = await fetch(`http://localhost:8000/api/usuarios/${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Dados recebidos do backend:', data);
+          setUserData(data);
+          updateUser(data);
+        } else {
+          console.error('❌ Erro na resposta:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar dados do usuário:', error);
+      }
+    };
+
+    if (user?.id) {
+      console.log('👤 Usuário atual:', user);
+      fetchUserData();
+    }
+  }, [user?.id, updateUser]);
 
   useEffect(() => {
     const fetchAlunos = async () => {
@@ -35,7 +68,7 @@ const DashboardOrientador = () => {
       }
     };
     if (user?.id) fetchAlunos();
-  }, [user]);
+  }, [user?.id]);
 
   // Buscar propostas pendentes
   useEffect(() => {
@@ -54,11 +87,15 @@ const DashboardOrientador = () => {
       }
     };
     
-    fetchPropostasPendentes();
+    if (user?.id) {
+      fetchPropostasPendentes();
+    }
     // Atualizar a cada 30 segundos
-    const interval = setInterval(fetchPropostasPendentes, 30000);
+    const interval = setInterval(() => {
+      if (user?.id) fetchPropostasPendentes();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user?.id]);
 
   const abrirModalProposta = (proposta) => {
     setSelectedProposta(proposta);
@@ -68,6 +105,57 @@ const DashboardOrientador = () => {
   const fecharModal = () => {
     setModalAberto(false);
     setSelectedProposta(null);
+  };
+
+  const abrirModalEntrega = (entrega) => {
+    setEntregaSelecionada(entrega);
+    setModalEntregaAberto(true);
+  };
+
+  const fecharModalEntrega = () => {
+    setModalEntregaAberto(false);
+    setEntregaSelecionada(null);
+  };
+
+  const avaliarEntrega = async (aprovar, feedback = '') => {
+    if (!entregaSelecionada || !selectedAluno) return;
+    
+    setAvaliandoEntrega(true);
+    try {
+      const formData = new URLSearchParams();
+      formData.append('aprovar', aprovar.toString());
+      if (feedback) formData.append('feedback', feedback);
+
+      const res = await fetch(
+        `http://localhost:8000/api/orientadores/${user.id}/entregas/${entregaSelecionada.id}/avaliar`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString(),
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Falha ao avaliar entrega');
+      }
+
+      const data = await res.json();
+      alert(data.message);
+      
+      // Recarregar lista de entregas
+      const resEnt = await fetch(`http://localhost:8000/api/orientadores/${user.id}/alunos/${selectedAluno.aluno_id}/entregas`);
+      const dataEnt = await resEnt.json();
+      setEntregas(dataEnt.entregas || []);
+      
+      fecharModalEntrega();
+    } catch (err) {
+      alert('Erro: ' + err.message);
+    } finally {
+      setAvaliandoEntrega(false);
+    }
   };
 
   const avaliarProposta = async (aprovar, feedback = '') => {
@@ -208,9 +296,9 @@ const DashboardOrientador = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-ibmec-blue-800 mb-2">
-            Olá, {user?.nome?.split(' ')[1]}! 👨‍🏫
+            Olá, {userData?.nome?.split(' ')[0] || 'Professor'}! 👨‍🏫
           </h1>
-          <p className="text-gray-600">Painel de Orientação - {user?.departamento}</p>
+          <p className="text-gray-600">Painel de Orientação - {userData?.departamento || 'Departamento não informado'}</p>
         </div>
 
         {/* Cards de Estatísticas */}
@@ -456,41 +544,144 @@ const DashboardOrientador = () => {
 
         {activeTab === 'detalhes' && selectedAluno && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-ibmec-blue-800">Entregas & Relatórios - {selectedAluno.nome}</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-ibmec-blue-800">
+                Entregas & Relatórios - {selectedAluno.nome}
+              </h2>
+              <button
+                onClick={() => setActiveTab('alunos')}
+                className="text-gray-600 hover:text-ibmec-blue-600 transition"
+              >
+                ← Voltar à lista de alunos
+              </button>
+            </div>
 
-            {/* Entregas do aluno */}
+            {/* Entregas do aluno com cards bonitos */}
             <Card>
-              <h3 className="text-xl font-bold text-ibmec-blue-700 mb-4">📦 Entregas do Aluno</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-ibmec-blue-700">📦 Entregas do Aluno</h3>
+                <span className="text-sm text-gray-600">
+                  {entregas.length} {entregas.length === 1 ? 'entrega' : 'entregas'} registradas
+                </span>
+              </div>
+              
               {entregas.length === 0 ? (
-                <p className="text-gray-600">Nenhuma entrega registrada.</p>
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📭</div>
+                  <p className="text-gray-600">Nenhuma entrega registrada ainda.</p>
+                </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-600 border-b">
-                        <th className="py-2 pr-4">Tipo</th>
-                        <th className="py-2 pr-4">Data</th>
-                        <th className="py-2 pr-4">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entregas.map((e) => (
-                        <tr key={e.id} className="border-b last:border-0">
-                          <td className="py-2 pr-4">{e.tipo}</td>
-                          <td className="py-2 pr-4">{new Date(e.data).toLocaleDateString('pt-BR')}</td>
-                          <td className="py-2 pr-4">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              e.status === 'aprovada' ? 'bg-green-100 text-green-700' :
-                              e.status === 'em revisão' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-blue-100 text-blue-700'
-                            }`}>
-                              {e.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-4">
+                  {entregas.map((entrega) => {
+                    const statusOrientador = entrega.status_aprovacao_orientador;
+                    const statusCoordenador = entrega.status_aprovacao_coordenador;
+                    
+                    // Determinar status geral e cor
+                    let statusGeral = 'Aguardando Avaliação';
+                    let statusCor = 'bg-yellow-100 text-yellow-700 border-yellow-300';
+                    let iconeStatus = '⏳';
+                    
+                    if (statusOrientador === 'rejeitado') {
+                      statusGeral = 'Rejeitado pelo Orientador';
+                      statusCor = 'bg-red-100 text-red-700 border-red-300';
+                      iconeStatus = '❌';
+                    } else if (statusOrientador === 'aprovado' && statusCoordenador === 'pendente') {
+                      statusGeral = 'Aprovado - Aguardando Coordenador';
+                      statusCor = 'bg-blue-100 text-blue-700 border-blue-300';
+                      iconeStatus = '✓';
+                    } else if (statusOrientador === 'aprovado' && statusCoordenador === 'aprovado') {
+                      statusGeral = 'Aprovado Final';
+                      statusCor = 'bg-green-100 text-green-700 border-green-300';
+                      iconeStatus = '✅';
+                    } else if (statusOrientador === 'aprovado' && statusCoordenador === 'rejeitado') {
+                      statusGeral = 'Rejeitado pelo Coordenador';
+                      statusCor = 'bg-red-100 text-red-700 border-red-300';
+                      iconeStatus = '❌';
+                    }
+                    
+                    return (
+                      <div key={entrega.id} className={`border-2 rounded-lg p-5 ${statusCor}`}>
+                        <div className="flex items-start justify-between gap-4">
+                          {/* Informações da entrega */}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h4 className="text-lg font-bold">{entrega.titulo}</h4>
+                              <span className="px-3 py-1 rounded-full text-xs font-semibold border">
+                                {iconeStatus} {statusGeral}
+                              </span>
+                            </div>
+                            
+                            <div className="grid md:grid-cols-2 gap-2 text-sm mb-3">
+                              <div>
+                                <span className="font-semibold">Tipo:</span> {entrega.tipo}
+                              </div>
+                              <div>
+                                <span className="font-semibold">Data de Entrega:</span>{' '}
+                                {new Date(entrega.data_entrega).toLocaleDateString('pt-BR', {
+                                  day: '2-digit',
+                                  month: 'long',
+                                  year: 'numeric'
+                                })}
+                              </div>
+                            </div>
+                            
+                            {entrega.descricao && (
+                              <p className="text-sm mb-3">
+                                <span className="font-semibold">Descrição:</span> {entrega.descricao}
+                              </p>
+                            )}
+                            
+                            {entrega.arquivo && (
+                              <p className="text-sm">
+                                <span className="font-semibold">Arquivo:</span>{' '}
+                                <a
+                                  href={`http://localhost:8000/uploads/entregas/${entrega.arquivo}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-ibmec-blue-600 hover:underline"
+                                >
+                                  📎 {entrega.arquivo}
+                                </a>
+                              </p>
+                            )}
+                            
+                            {/* Feedbacks */}
+                            {entrega.feedback_orientador && (
+                              <div className="mt-3 bg-white bg-opacity-50 p-3 rounded">
+                                <p className="text-xs font-semibold mb-1">📝 Seu Feedback:</p>
+                                <p className="text-sm">{entrega.feedback_orientador}</p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  Avaliado em: {new Date(entrega.data_avaliacao_orientador).toLocaleString('pt-BR')}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {entrega.feedback_coordenador && (
+                              <div className="mt-3 bg-white bg-opacity-50 p-3 rounded">
+                                <p className="text-xs font-semibold mb-1">📝 Feedback do Coordenador:</p>
+                                <p className="text-sm">{entrega.feedback_coordenador}</p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  Avaliado em: {new Date(entrega.data_avaliacao_coordenador).toLocaleString('pt-BR')}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Botão de ação */}
+                          <div className="flex flex-col gap-2">
+                            {statusOrientador === 'pendente' && (
+                              <button
+                                onClick={() => abrirModalEntrega(entrega)}
+                                className="bg-ibmec-blue-600 hover:bg-ibmec-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition whitespace-nowrap"
+                              >
+                                📋 Avaliar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </Card>
@@ -722,6 +913,132 @@ const DashboardOrientador = () => {
                 <button
                   onClick={fecharModal}
                   disabled={avaliando}
+                  className="bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 text-gray-700 font-semibold py-4 px-6 rounded-lg transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Avaliação de Entrega */}
+      {modalEntregaAberto && entregaSelecionada && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header do Modal */}
+            <div className="sticky top-0 bg-gradient-to-r from-ibmec-blue-600 to-ibmec-blue-700 text-white p-6 rounded-t-2xl">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">{entregaSelecionada.titulo}</h2>
+                  <p className="text-ibmec-blue-100">Avaliação de Entrega - {selectedAluno?.nome}</p>
+                </div>
+                <button
+                  onClick={fecharModalEntrega}
+                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Conteúdo do Modal */}
+            <div className="p-6 space-y-6">
+              {/* Informações da Entrega */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-bold text-ibmec-blue-700 mb-3">📦 Informações da Entrega</h3>
+                <div className="grid md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600">Tipo:</span>
+                    <p className="font-semibold text-gray-800">{entregaSelecionada.tipo}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Data de Entrega:</span>
+                    <p className="font-semibold text-gray-800">
+                      {new Date(entregaSelecionada.data_entrega).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Descrição */}
+              {entregaSelecionada.descricao && (
+                <div>
+                  <h3 className="text-lg font-bold text-ibmec-blue-700 mb-3">📝 Descrição</h3>
+                  <p className="bg-gray-50 p-3 rounded text-gray-800 whitespace-pre-wrap">
+                    {entregaSelecionada.descricao}
+                  </p>
+                </div>
+              )}
+
+              {/* Arquivo */}
+              {entregaSelecionada.arquivo && (
+                <div>
+                  <h3 className="text-lg font-bold text-ibmec-blue-700 mb-3">📎 Arquivo Anexado</h3>
+                  <a
+                    href={`http://localhost:8000/uploads/entregas/${entregaSelecionada.arquivo}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-3 rounded transition"
+                  >
+                    📄 {entregaSelecionada.arquivo}
+                    <span className="text-xs text-gray-600">- Clique para visualizar</span>
+                  </a>
+                </div>
+              )}
+
+              {/* Área de Feedback */}
+              <div>
+                <h3 className="text-lg font-bold text-ibmec-blue-700 mb-3">💬 Seu Feedback (opcional)</h3>
+                <textarea
+                  id="feedback-entrega"
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent resize-none"
+                  rows="4"
+                  placeholder="Digite aqui seus comentários sobre a entrega (opcional)..."
+                ></textarea>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Forneça feedback construtivo para ajudar o aluno a melhorar seu trabalho.
+                </p>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="flex gap-4 pt-4 border-t">
+                <button
+                  onClick={() => {
+                    const feedback = document.getElementById('feedback-entrega').value;
+                    if (window.confirm('Tem certeza que deseja APROVAR esta entrega? Ela será encaminhada para o coordenador.')) {
+                      avaliarEntrega(true, feedback);
+                    }
+                  }}
+                  disabled={avaliandoEntrega}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-4 px-6 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  {avaliandoEntrega ? '⏳ Processando...' : '✅ Aprovar Entrega'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    const feedback = document.getElementById('feedback-entrega').value;
+                    if (!feedback.trim()) {
+                      alert('Por favor, forneça um feedback explicando o motivo da rejeição.');
+                      return;
+                    }
+                    if (window.confirm('Tem certeza que deseja REJEITAR esta entrega? O aluno precisará refazê-la.')) {
+                      avaliarEntrega(false, feedback);
+                    }
+                  }}
+                  disabled={avaliandoEntrega}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-4 px-6 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  {avaliandoEntrega ? '⏳ Processando...' : '❌ Rejeitar Entrega'}
+                </button>
+
+                <button
+                  onClick={fecharModalEntrega}
+                  disabled={avaliandoEntrega}
                   className="bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 text-gray-700 font-semibold py-4 px-6 rounded-lg transition"
                 >
                   Cancelar

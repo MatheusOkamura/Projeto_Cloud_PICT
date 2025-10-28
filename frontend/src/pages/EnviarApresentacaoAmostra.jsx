@@ -7,6 +7,31 @@ const EnviarApresentacaoAmostra = () => {
   const [descricao, setDescricao] = useState('');
   const [arquivo, setArquivo] = useState(null);
   const [sending, setSending] = useState(false);
+  const [jaEnviou, setJaEnviou] = useState(false);
+  const [entregaExistente, setEntregaExistente] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Verificar se já enviou a apresentação
+  useState(() => {
+    const verificarEntrega = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const res = await fetch(`http://localhost:8000/api/alunos/${user.id}/verificar-entrega/apresentacao`);
+        if (res.ok) {
+          const data = await res.json();
+          setJaEnviou(data.ja_enviou);
+          setEntregaExistente(data.entrega);
+        }
+      } catch (err) {
+        console.error('Erro ao verificar entrega:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    verificarEntrega();
+  }, [user]);
 
   const handleFileChange = (e) => {
     setArquivo(e.target.files[0]);
@@ -17,7 +42,7 @@ const EnviarApresentacaoAmostra = () => {
     if (!arquivo) return alert('Selecione o arquivo da apresentação de amostra.');
     setSending(true);
     const fd = new FormData();
-    fd.append('etapa', 'apresentacao_amostra');
+    fd.append('etapa', 'apresentacao');
     fd.append('descricao', descricao);
     fd.append('arquivo', arquivo);
     try {
@@ -25,8 +50,20 @@ const EnviarApresentacaoAmostra = () => {
         method: 'POST',
         body: fd,
       });
-      if (!res.ok) throw new Error('Falha ao enviar apresentação de amostra');
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.detail || 'Falha ao enviar apresentação de amostra');
+      }
+      
       alert('Apresentação de amostra enviada com sucesso!');
+      setJaEnviou(true);
+      setEntregaExistente({
+        titulo: 'Apresentação de Amostra',
+        data_entrega: new Date().toISOString(),
+        arquivo: data.arquivo
+      });
       setDescricao('');
       setArquivo(null);
     } catch (err) {
@@ -35,6 +72,83 @@ const EnviarApresentacaoAmostra = () => {
       setSending(false);
     }
   };
+
+  // Mostrar loading
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">
+        <div className="container mx-auto max-w-3xl">
+          <Card>
+            <div className="text-center py-12">
+              <div className="animate-spin text-6xl mb-4">⏳</div>
+              <p className="text-gray-600">Carregando...</p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar mensagem de apresentação já enviada
+  if (jaEnviou && entregaExistente) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">
+        <div className="container mx-auto max-w-3xl">
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="text-3xl">✅</span>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-ibmec-blue-800">Apresentação Enviada</h1>
+                <p className="text-gray-600">Sua apresentação foi enviada com sucesso</p>
+              </div>
+            </div>
+          </div>
+
+          <Card>
+            <div className="text-center py-8">
+              <div className="text-6xl mb-6">🎤</div>
+              <h2 className="text-2xl font-bold text-green-600 mb-4">
+                Apresentação Enviada!
+              </h2>
+              <p className="text-gray-700 mb-6">
+                Sua apresentação foi enviada em{' '}
+                <strong>
+                  {new Date(entregaExistente.data_entrega).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </strong>
+              </p>
+              
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+                <div className="space-y-3 text-left">
+                  <div className="flex items-start gap-3">
+                    <span className="text-green-600">📎</span>
+                    <div>
+                      <p className="font-semibold text-gray-700">Arquivo:</p>
+                      <p className="text-sm text-gray-600">{entregaExistente.arquivo || 'Apresentação'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => window.history.back()}
+                className="px-8 py-3 bg-ibmec-blue-600 text-white rounded-lg hover:bg-ibmec-blue-700 transition font-semibold"
+              >
+                ← Voltar ao Dashboard
+              </button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">

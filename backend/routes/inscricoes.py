@@ -150,10 +150,11 @@ async def criar_inscricao(
 async def obter_inscricao_usuario(usuario_id: int, db: Session = Depends(get_db)):
     """
     Obter inscrição/proposta de um usuário específico.
+    Retorna a inscrição mais recente (última submetida).
     """
     inscricao = db.query(InscricaoModel).filter(
         InscricaoModel.usuario_id == usuario_id
-    ).first()
+    ).order_by(InscricaoModel.data_submissao.desc()).first()  # Ordenar por data de submissão, mais recente primeiro
     
     if not inscricao:
         return {
@@ -185,6 +186,8 @@ async def obter_inscricao_usuario(usuario_id: int, db: Session = Depends(get_db)
             "feedback": inscricao.feedback,
             "feedback_orientador": inscricao.feedback_orientador,
             "feedback_coordenador": inscricao.feedback_coordenador,
+            "status_aprovacao_orientador": inscricao.status_aprovacao_orientador,
+            "status_aprovacao_coordenador": inscricao.status_aprovacao_coordenador,
             "data_submissao": inscricao.data_submissao.isoformat() if inscricao.data_submissao else None,
             "data_avaliacao_orientador": inscricao.data_avaliacao_orientador.isoformat() if inscricao.data_avaliacao_orientador else None,
             "data_avaliacao_coordenador": inscricao.data_avaliacao_coordenador.isoformat() if inscricao.data_avaliacao_coordenador else None,
@@ -237,8 +240,10 @@ async def listar_inscricoes(
             "orientador_nome": i.orientador_nome,
             "orientador_id": i.orientador_id,
             "feedback_orientador": i.feedback_orientador,
+            "status_aprovacao_orientador": i.status_aprovacao_orientador,
             "data_avaliacao_orientador": i.data_avaliacao_orientador.isoformat() if i.data_avaliacao_orientador else None,
             "feedback_coordenador": i.feedback_coordenador,
+            "status_aprovacao_coordenador": i.status_aprovacao_coordenador,
             "data_avaliacao_coordenador": i.data_avaliacao_coordenador.isoformat() if i.data_avaliacao_coordenador else None
         }
         for i in inscricoes
@@ -464,9 +469,11 @@ async def orientador_avaliar(
     # Atualizar status conforme decisão
     if aprovar:
         inscricao.status = StatusInscricao.pendente_coordenador
+        inscricao.status_aprovacao_orientador = "aprovado"
         mensagem = "Proposta aprovada pelo orientador. Aguardando avaliação do coordenador."
     else:
         inscricao.status = StatusInscricao.rejeitada_orientador
+        inscricao.status_aprovacao_orientador = "rejeitado"
         mensagem = "Proposta rejeitada pelo orientador."
     
     inscricao.feedback_orientador = feedback
@@ -519,6 +526,7 @@ async def coordenador_avaliar(
     # Atualizar status conforme decisão
     if aprovar:
         inscricao.status = StatusInscricao.aprovada
+        inscricao.status_aprovacao_coordenador = "aprovado"
         mensagem = "Proposta aprovada pelo coordenador. Projeto criado com sucesso!"
         
         # Criar o projeto
@@ -542,6 +550,7 @@ async def coordenador_avaliar(
             db.add(novo_projeto)
     else:
         inscricao.status = StatusInscricao.rejeitada_coordenador
+        inscricao.status_aprovacao_coordenador = "rejeitado"
         mensagem = "Proposta rejeitada pelo coordenador."
     
     inscricao.feedback_coordenador = feedback

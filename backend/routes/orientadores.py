@@ -81,7 +81,7 @@ async def listar_entregas_aluno(orientador_id: int, aluno_id: int, db: Session =
         )
     
     # Buscar entregas do projeto
-    entregas = db.query(Entrega).filter(Entrega.projeto_id == projeto.id).all()
+    entregas = db.query(Entrega).filter(Entrega.projeto_id == projeto.id).order_by(Entrega.data_entrega.desc()).all()
     
     return {
         "aluno_id": aluno_id,
@@ -94,10 +94,88 @@ async def listar_entregas_aluno(orientador_id: int, aluno_id: int, db: Session =
                 "descricao": e.descricao,
                 "arquivo": e.arquivo,
                 "data_entrega": e.data_entrega.isoformat() if e.data_entrega else None,
-                "prazo": e.prazo.isoformat() if e.prazo else None
+                "prazo": e.prazo.isoformat() if e.prazo else None,
+                "status_aprovacao_orientador": e.status_aprovacao_orientador,
+                "feedback_orientador": e.feedback_orientador,
+                "data_avaliacao_orientador": e.data_avaliacao_orientador.isoformat() if e.data_avaliacao_orientador else None,
+                "status_aprovacao_coordenador": e.status_aprovacao_coordenador,
+                "feedback_coordenador": e.feedback_coordenador,
+                "data_avaliacao_coordenador": e.data_avaliacao_coordenador.isoformat() if e.data_avaliacao_coordenador else None
             }
             for e in entregas
         ]
+    }
+
+@router.post("/orientadores/{orientador_id}/entregas/{entrega_id}/avaliar")
+async def orientador_avaliar_entrega(
+    orientador_id: int,
+    entrega_id: int,
+    aprovar: bool = Form(...),
+    feedback: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Orientador avalia uma entrega do aluno (primeira etapa de aprovação).
+    Similar ao fluxo de aprovação de propostas.
+    
+    - aprovar=true: Aprova e envia para coordenador
+    - aprovar=false: Rejeita a entrega
+    """
+    print(f"🔍 Orientador {orientador_id} avaliando entrega {entrega_id}: aprovar={aprovar}")
+    
+    # Buscar entrega
+    entrega = db.query(Entrega).filter(Entrega.id == entrega_id).first()
+    
+    if not entrega:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Entrega não encontrada"
+        )
+    
+    # Verificar se é do orientador
+    projeto = db.query(Projeto).filter(
+        Projeto.id == entrega.projeto_id,
+        Projeto.orientador_id == orientador_id
+    ).first()
+    
+    if not projeto:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta entrega não pertence a um aluno seu"
+        )
+    
+    # Verificar se já foi avaliada
+    if entrega.status_aprovacao_orientador != "pendente":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Entrega já foi avaliada. Status atual: {entrega.status_aprovacao_orientador}"
+        )
+    
+    # Atualizar status
+    if aprovar:
+        entrega.status_aprovacao_orientador = "aprovado"
+        # Se aprovar, fica pendente para coordenador avaliar
+        entrega.status_aprovacao_coordenador = "pendente"
+        mensagem = f"{entrega.titulo} aprovado pelo orientador. Aguardando avaliação do coordenador."
+    else:
+        entrega.status_aprovacao_orientador = "rejeitado"
+        entrega.status_aprovacao_coordenador = "n/a"  # Não precisa ir para coordenador
+        mensagem = f"{entrega.titulo} rejeitado pelo orientador."
+    
+    entrega.feedback_orientador = feedback
+    entrega.data_avaliacao_orientador = datetime.now()
+    
+    db.commit()
+    db.refresh(entrega)
+    
+    print(f"✅ Entrega avaliada: status_orientador = {entrega.status_aprovacao_orientador}")
+    
+    return {
+        "message": mensagem,
+        "entrega_id": entrega_id,
+        "status_orientador": entrega.status_aprovacao_orientador,
+        "status_coordenador": entrega.status_aprovacao_coordenador,
+        "proxima_etapa": "coordenador" if aprovar else None
     }
 
 @router.post("/orientadores/{orientador_id}/alunos/{aluno_id}/relatorios-mensais", status_code=status.HTTP_201_CREATED)

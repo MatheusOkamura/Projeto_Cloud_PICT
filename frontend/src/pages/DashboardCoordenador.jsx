@@ -33,12 +33,12 @@ const DashboardCoordenador = () => {
     loadInscricoes();
   }, []);
 
-  const carregarEntregasAluno = async (alunoId) => {
+  const carregarEntregasAluno = async (alunoId, nomeAluno = null) => {
     try {
       const res = await fetch(`http://localhost:8000/api/coordenadores/alunos/${alunoId}/entregas`);
       if (!res.ok) throw new Error('Falha ao carregar entregas do aluno');
       const data = await res.json();
-      setSelectedAlunoEntregas(alunoId);
+      setSelectedAlunoEntregas({ id: alunoId, nome: nomeAluno || `Aluno #${alunoId}` });
       setEntregasAluno(data.entregas || []);
     } catch (e) {
       alert('Erro ao carregar entregas do aluno');
@@ -75,6 +75,19 @@ const DashboardCoordenador = () => {
 
   const filteredInscricoes = filterStatus === 'todos' 
     ? inscricoes 
+    : filterStatus === 'em_analise'
+    ? inscricoes.filter(i => 
+        i.status === 'em_analise' || 
+        i.status === 'pendente_orientador' || 
+        i.status === 'pendente_coordenador' ||
+        i.status === 'pendente'
+      )
+    : filterStatus === 'rejeitada'
+    ? inscricoes.filter(i => 
+        i.status === 'rejeitada' || 
+        i.status === 'rejeitada_orientador' || 
+        i.status === 'rejeitada_coordenador'
+      )
     : inscricoes.filter(i => i.status === filterStatus);
 
   const getStatusColor = (status) => {
@@ -354,7 +367,7 @@ const DashboardCoordenador = () => {
                         </>
                       )}
                       {inscricao.usuario_id && (
-                        <button onClick={() => carregarEntregasAluno(inscricao.usuario_id)} className="btn-outline text-sm py-2">
+                        <button onClick={() => carregarEntregasAluno(inscricao.usuario_id, inscricao.nome)} className="btn-outline text-sm py-2">
                           📦 Ver Entregas do Aluno
                         </button>
                       )}
@@ -367,7 +380,7 @@ const DashboardCoordenador = () => {
 
             {selectedAlunoEntregas && (
               <Card>
-                <h3 className="text-xl font-bold text-ibmec-blue-700 mb-4">📦 Entregas do Aluno #{selectedAlunoEntregas}</h3>
+                <h3 className="text-xl font-bold text-ibmec-blue-700 mb-4">📦 Entregas do Aluno {selectedAlunoEntregas.nome}</h3>
                 {entregasAluno.length === 0 ? (
                   <p className="text-gray-600">Nenhuma entrega registrada.</p>
                 ) : (
@@ -583,8 +596,18 @@ const DashboardCoordenador = () => {
 
               {/* Feedback do Orientador */}
               {propostaDetalhada.feedback_orientador && (
-                <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                  <h4 className="font-bold text-green-800 mb-3 text-lg">✅ Avaliação do Orientador</h4>
+                <div className={`p-4 rounded-lg border-l-4 ${
+                  propostaDetalhada.status_aprovacao_orientador === 'rejeitado'
+                    ? 'bg-red-50 border-red-500'
+                    : 'bg-green-50 border-green-500'
+                }`}>
+                  <h4 className={`font-bold mb-3 text-lg ${
+                    propostaDetalhada.status_aprovacao_orientador === 'rejeitado'
+                      ? 'text-red-800'
+                      : 'text-green-800'
+                  }`}>
+                    {propostaDetalhada.status_aprovacao_orientador === 'rejeitado' ? '❌' : '✅'} Avaliação do Orientador
+                  </h4>
                   <div className="space-y-2 text-sm">
                     {propostaDetalhada.data_avaliacao_orientador && (
                       <div>
@@ -602,7 +625,11 @@ const DashboardCoordenador = () => {
                     )}
                     <div>
                       <p className="text-gray-600 font-semibold">Parecer do Orientador:</p>
-                      <p className="text-gray-800 whitespace-pre-wrap bg-white p-3 rounded border border-green-200 mt-1">
+                      <p className={`text-gray-800 whitespace-pre-wrap bg-white p-3 rounded border mt-1 ${
+                        propostaDetalhada.status_aprovacao_orientador === 'rejeitado'
+                          ? 'border-red-200'
+                          : 'border-green-200'
+                      }`}>
                         {propostaDetalhada.feedback_orientador}
                       </p>
                     </div>

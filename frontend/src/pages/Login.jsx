@@ -39,17 +39,25 @@ const Login = () => {
       const result = await login(formData.email, formData.senha);
       const userData = result.user;
       
-      // Verificar se é aluno e se precisa completar cadastro
-      const precisaCompletarCadastro = userData.tipo === 'aluno' && (
+      // Verificar se precisa completar cadastro
+      const alunoSemDados = userData.tipo === 'aluno' && (
         !userData.curso || 
         !userData.matricula || 
         !userData.cpf || 
         !userData.telefone
       );
       
+      const orientadorSemDados = userData.tipo === 'orientador' && (
+        !userData.nome ||
+        !userData.departamento ||
+        !userData.telefone
+      );
+      
+      const precisaCompletarCadastro = alunoSemDados || orientadorSemDados;
+      
       // Redirecionar baseado em se precisa completar cadastro
       if (precisaCompletarCadastro) {
-        // Aluno sem dados completos -> formulário de completar cadastro
+        // Usuário sem dados completos -> formulário de completar cadastro
         navigate('/cadastro', { state: { email: userData.email, nome: userData.nome } });
       } else {
         // Usuário com dados completos -> dashboard

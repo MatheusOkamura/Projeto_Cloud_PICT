@@ -72,6 +72,12 @@ const DashboardAluno = () => {
   // Simular se o aluno tem proposta submetida
   const temProposta = inscricao !== null;
   const semProposta = !temProposta;
+  
+  // Verificar se a proposta foi rejeitada (por orientador ou coordenador)
+  const propostaRejeitada = inscricao?.status === 'rejeitada_orientador' || 
+                            inscricao?.status === 'rejeitada_coordenador' ||
+                            inscricao?.status_aprovacao_orientador === 'rejeitado' ||
+                            inscricao?.status_aprovacao_coordenador === 'rejeitado';
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -142,13 +148,19 @@ const DashboardAluno = () => {
               <Card>
                 <div className="flex items-center space-x-4">
                   <div className="text-4xl">
-                    {temProposta ? (inscricao.status === 'aprovada' ? '✅' : inscricao.status === 'em_analise' ? '⏳' : '📋') : '📝'}
+                    {temProposta ? (
+                      propostaRejeitada ? '❌' :
+                      inscricao.status === 'aprovada' ? '✅' : 
+                      inscricao.status === 'em_analise' ? '⏳' : '📋'
+                    ) : '📝'}
                   </div>
                   <div>
                     <p className="text-gray-600 text-sm">Status</p>
                     <p className="text-xl font-bold text-ibmec-blue-700">
                       {temProposta 
-                        ? (inscricao.status === 'em_analise' ? 'Em Análise' : inscricao.status === 'aprovada' ? 'Aprovado' : 'Pendente')
+                        ? (propostaRejeitada ? 'Rejeitado' :
+                           inscricao.status === 'em_analise' ? 'Em Análise' : 
+                           inscricao.status === 'aprovada' ? 'Aprovado' : 'Pendente')
                         : 'Sem Proposta'
                       }
                     </p>
@@ -157,21 +169,34 @@ const DashboardAluno = () => {
               </Card>
             </div>
 
-            {/* Botão de Submissão - Aparece apenas se não tiver proposta */}
-            {semProposta && (
-              <Card className="mb-8 bg-gradient-to-r from-ibmec-blue-500 to-ibmec-blue-600 text-white">
+            {/* Botão de Submissão - Aparece se não tiver proposta OU se foi rejeitada */}
+            {(semProposta || propostaRejeitada) && (
+              <Card className={`mb-8 ${
+                propostaRejeitada
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600'
+                  : 'bg-gradient-to-r from-ibmec-blue-500 to-ibmec-blue-600'
+              } text-white`}>
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="flex-1">
-                    <h2 className="text-2xl font-bold mb-2">🚀 Pronto para começar?</h2>
-                    <p className="text-blue-50">
-                      Submeta sua proposta de iniciação científica e dê o primeiro passo na sua jornada de pesquisa!
+                    <h2 className="text-2xl font-bold mb-2">
+                      {propostaRejeitada
+                        ? '🔄 Proposta Rejeitada - Envie uma Nova'
+                        : ' Pronto para começar?'
+                      }
+                    </h2>
+                    <p className={propostaRejeitada ? 'text-orange-50' : 'text-blue-50'}>
+                      {propostaRejeitada
+                        ? 'Sua proposta foi rejeitada. Revise o feedback abaixo e submeta uma nova proposta melhorada!'
+                        : 'Submeta sua proposta de iniciação científica e dê o primeiro passo na sua jornada de pesquisa!'
+                      }
                     </p>
                   </div>
                   <button
                     onClick={() => navigate('/submeter-proposta')}
-                    className="bg-white text-ibmec-blue-600 px-8 py-3 rounded-lg font-bold hover:bg-blue-50 transition transform hover:scale-105 whitespace-nowrap"
+                    className="bg-white px-8 py-3 rounded-lg font-bold hover:bg-gray-50 transition transform hover:scale-105 whitespace-nowrap"  
+                    style={{ color: propostaRejeitada ? '#f97316' : '#2563eb' }}
                   >
-                    📝 Submeter Proposta
+                    {propostaRejeitada ? '📝 Enviar Nova Proposta' : '📝 Submeter Proposta'}
                   </button>
                 </div>
               </Card>
@@ -201,7 +226,7 @@ const DashboardAluno = () => {
                             etapaAtual === 'apresentacao_amostra' ? '75%' :
                             etapaAtual === 'relatorio_parcial' ? '50%' :
                             inscricao.status === 'aprovada' ? '25%' :
-                            '0%'
+                            temProposta ? '12.5%' : '0%'
                         }}
                       ></div>
                       
@@ -210,11 +235,11 @@ const DashboardAluno = () => {
                         {/* 1. Proposta Enviada */}
                         <div className="flex flex-col items-center z-10">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            inscricao.status !== 'pendente_orientador' && inscricao.status !== 'pendente_coordenador'
+                            temProposta
                               ? 'bg-green-500 text-white' 
                               : 'bg-gray-300 text-gray-600'
                           }`}>
-                            {inscricao.status !== 'pendente_orientador' && inscricao.status !== 'pendente_coordenador' ? '✓' : '1'}
+                            {temProposta ? '✓' : '1'}
                           </div>
                           <p className="text-xs mt-2 text-center font-medium w-20">Proposta Enviada</p>
                         </div>
@@ -290,8 +315,14 @@ const DashboardAluno = () => {
                     )}
                   </div>
 
-                  <div className={`px-4 py-3 rounded-lg border-2 mb-6 ${getStatusColor(inscricao.status)}`}>
-                    <p className="font-bold text-lg">{getStatusText(inscricao.status)}</p>
+                  <div className={`px-4 py-3 rounded-lg border-2 mb-6 ${
+                    propostaRejeitada 
+                      ? 'bg-red-100 text-red-800 border-red-300'
+                      : getStatusColor(inscricao.status)
+                  }`}>
+                    <p className="font-bold text-lg">
+                      {propostaRejeitada ? '❌ Rejeitado' : getStatusText(inscricao.status)}
+                    </p>
                   </div>
                   <div className="space-y-4">
                     <div>
@@ -417,12 +448,27 @@ const DashboardAluno = () => {
                   <div className="space-y-4">
                     {/* Feedback do Orientador */}
                     {inscricao.feedback_orientador && (
-                      <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                      <div className={`p-4 rounded-lg border-l-4 ${
+                        inscricao.status_aprovacao_orientador === 'rejeitado' 
+                          ? 'bg-red-50 border-red-500' 
+                          : 'bg-green-50 border-green-500'
+                      }`}>
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-2xl">✅</span>
+                            <span className="text-2xl">
+                              {inscricao.status_aprovacao_orientador === 'rejeitado' ? '❌' : '✅'}
+                            </span>
                             <div>
-                              <p className="font-bold text-green-800">Avaliação do Orientador</p>
+                              <p className={`font-bold ${
+                                inscricao.status_aprovacao_orientador === 'rejeitado' 
+                                  ? 'text-red-800' 
+                                  : 'text-green-800'
+                              }`}>
+                                {inscricao.status_aprovacao_orientador === 'rejeitado' 
+                                  ? 'Rejeitado pelo Orientador' 
+                                  : 'Avaliação do Orientador'
+                                }
+                              </p>
                               {inscricao.data_avaliacao_orientador && (
                                 <p className="text-sm text-gray-600">
                                   {new Date(inscricao.data_avaliacao_orientador).toLocaleString('pt-BR', {
@@ -437,7 +483,11 @@ const DashboardAluno = () => {
                             </div>
                           </div>
                         </div>
-                        <div className="bg-white p-3 rounded border border-green-200 mt-2">
+                        <div className={`bg-white p-3 rounded border mt-2 ${
+                          inscricao.status_aprovacao_orientador === 'rejeitado' 
+                            ? 'border-red-200' 
+                            : 'border-green-200'
+                        }`}>
                           <p className="text-gray-800 whitespace-pre-wrap">{inscricao.feedback_orientador}</p>
                         </div>
                       </div>
@@ -445,12 +495,27 @@ const DashboardAluno = () => {
 
                     {/* Feedback do Coordenador */}
                     {inscricao.feedback_coordenador && (
-                      <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                      <div className={`p-4 rounded-lg border-l-4 ${
+                        inscricao.status_aprovacao_coordenador === 'rejeitado' 
+                          ? 'bg-red-50 border-red-500' 
+                          : 'bg-blue-50 border-blue-500'
+                      }`}>
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-2xl">🎓</span>
+                            <span className="text-2xl">
+                              {inscricao.status_aprovacao_coordenador === 'rejeitado' ? '❌' : '🎓'}
+                            </span>
                             <div>
-                              <p className="font-bold text-blue-800">Avaliação do Coordenador</p>
+                              <p className={`font-bold ${
+                                inscricao.status_aprovacao_coordenador === 'rejeitado' 
+                                  ? 'text-red-800' 
+                                  : 'text-blue-800'
+                              }`}>
+                                {inscricao.status_aprovacao_coordenador === 'rejeitado' 
+                                  ? 'Rejeitado pelo Coordenador' 
+                                  : 'Avaliação do Coordenador'
+                                }
+                              </p>
                               {inscricao.data_avaliacao_coordenador && (
                                 <p className="text-sm text-gray-600">
                                   {new Date(inscricao.data_avaliacao_coordenador).toLocaleString('pt-BR', {
@@ -465,7 +530,11 @@ const DashboardAluno = () => {
                             </div>
                           </div>
                         </div>
-                        <div className="bg-white p-3 rounded border border-blue-200 mt-2">
+                        <div className={`bg-white p-3 rounded border mt-2 ${
+                          inscricao.status_aprovacao_coordenador === 'rejeitado' 
+                            ? 'border-red-200' 
+                            : 'border-blue-200'
+                        }`}>
                           <p className="text-gray-800 whitespace-pre-wrap">{inscricao.feedback_coordenador}</p>
                         </div>
                       </div>

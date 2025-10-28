@@ -7,6 +7,31 @@ const EnviarRelatorioParcial = () => {
   const [descricao, setDescricao] = useState('');
   const [arquivo, setArquivo] = useState(null);
   const [sending, setSending] = useState(false);
+  const [jaEnviou, setJaEnviou] = useState(false);
+  const [entregaExistente, setEntregaExistente] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Verificar se já enviou o relatório
+  useState(() => {
+    const verificarEntrega = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const res = await fetch(`http://localhost:8000/api/alunos/${user.id}/verificar-entrega/relatorio_parcial`);
+        if (res.ok) {
+          const data = await res.json();
+          setJaEnviou(data.ja_enviou);
+          setEntregaExistente(data.entrega);
+        }
+      } catch (err) {
+        console.error('Erro ao verificar entrega:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    verificarEntrega();
+  }, [user]);
 
   const handleFileChange = (e) => {
     setArquivo(e.target.files[0]);
@@ -25,8 +50,20 @@ const EnviarRelatorioParcial = () => {
         method: 'POST',
         body: fd,
       });
-      if (!res.ok) throw new Error('Falha ao enviar relatório parcial');
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.detail || 'Falha ao enviar relatório parcial');
+      }
+      
       alert('Relatório parcial enviado com sucesso!');
+      setJaEnviou(true);
+      setEntregaExistente({
+        titulo: 'Relatório Parcial',
+        data_entrega: new Date().toISOString(),
+        arquivo: data.arquivo
+      });
       setDescricao('');
       setArquivo(null);
     } catch (err) {
@@ -35,6 +72,122 @@ const EnviarRelatorioParcial = () => {
       setSending(false);
     }
   };
+
+  // Mostrar loading
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">
+        <div className="container mx-auto max-w-3xl">
+          <Card>
+            <div className="text-center py-12">
+              <div className="animate-spin text-6xl mb-4">⏳</div>
+              <p className="text-gray-600">Carregando...</p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar mensagem de relatório já enviado
+  if (jaEnviou && entregaExistente) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">
+        <div className="container mx-auto max-w-3xl">
+          {/* Header */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="text-3xl">✅</span>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-ibmec-blue-800">Relatório Enviado</h1>
+                <p className="text-gray-600">Seu relatório parcial foi enviado com sucesso</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Confirmação */}
+          <Card>
+            <div className="text-center py-8">
+              <div className="text-6xl mb-6">📄</div>
+              <h2 className="text-2xl font-bold text-green-600 mb-4">
+                Relatório Parcial Enviado!
+              </h2>
+              <p className="text-gray-700 mb-6">
+                Seu relatório foi enviado em{' '}
+                <strong>
+                  {new Date(entregaExistente.data_entrega).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </strong>
+              </p>
+              
+              {/* Informações da entrega */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+                <div className="space-y-3 text-left">
+                  <div className="flex items-start gap-3">
+                    <span className="text-green-600">📎</span>
+                    <div>
+                      <p className="font-semibold text-gray-700">Arquivo:</p>
+                      <p className="text-sm text-gray-600">{entregaExistente.arquivo || 'Relatório Parcial'}</p>
+                    </div>
+                  </div>
+                  {entregaExistente.descricao && (
+                    <div className="flex items-start gap-3">
+                      <span className="text-green-600">📝</span>
+                      <div>
+                        <p className="font-semibold text-gray-700">Observações:</p>
+                        <p className="text-sm text-gray-600">{entregaExistente.descricao}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Alerta informativo */}
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded text-left mb-6">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">ℹ️</span>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-blue-800 mb-1">Próximos Passos</h3>
+                    <p className="text-sm text-gray-700">
+                      Seu orientador receberá uma notificação e avaliará seu relatório. 
+                      Você será notificado quando houver feedback.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botão Voltar */}
+              <button 
+                onClick={() => window.history.back()}
+                className="px-8 py-3 bg-ibmec-blue-600 text-white rounded-lg hover:bg-ibmec-blue-700 transition font-semibold"
+              >
+                ← Voltar ao Dashboard
+              </button>
+            </div>
+          </Card>
+
+          {/* Card de Aviso */}
+          <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-5">
+            <h3 className="font-bold text-yellow-800 mb-3 flex items-center gap-2">
+              <span>⚠️</span>
+              Importante
+            </h3>
+            <p className="text-sm text-gray-700">
+              O envio do relatório parcial só pode ser feito uma vez. Se precisar fazer correções ou enviar uma nova versão, 
+              entre em contato com seu orientador.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-ibmec-blue-50 to-gray-100 py-8 px-4">
