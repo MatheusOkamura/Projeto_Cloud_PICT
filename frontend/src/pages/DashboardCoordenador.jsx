@@ -15,6 +15,11 @@ const DashboardCoordenador = () => {
   const [selectedAlunoEntregas, setSelectedAlunoEntregas] = useState(null);
   const [entregasAluno, setEntregasAluno] = useState([]);
   const [propostaDetalhada, setPropostaDetalhada] = useState(null);
+  const [orientadores, setOrientadores] = useState([]);
+  const [relatoriosMensais, setRelatoriosMensais] = useState([]);
+  const [selectedOrientador, setSelectedOrientador] = useState(null);
+  const [loadingRelatorios, setLoadingRelatorios] = useState(false);
+  const [respostaModal, setRespostaModal] = useState({ open: false, relatorioId: null, resposta: '', relatorioInfo: null });
 
   const loadInscricoes = async () => {
     try {
@@ -31,7 +36,34 @@ const DashboardCoordenador = () => {
 
   useEffect(() => {
     loadInscricoes();
+    loadOrientadores();
   }, []);
+
+  const loadOrientadores = async () => {
+    try {
+      const res = await fetch('http://localhost:8000/api/orientadores');
+      const data = await res.json();
+      setOrientadores(data.orientadores || []);
+    } catch (err) {
+      console.error('Erro ao carregar orientadores:', err);
+    }
+  };
+
+  const carregarRelatoriosMensais = async (orientadorId) => {
+    try {
+      setLoadingRelatorios(true);
+      setSelectedOrientador(orientadorId);
+      const res = await fetch(`http://localhost:8000/api/coordenadores/orientadores/${orientadorId}/relatorios-mensais`);
+      if (!res.ok) throw new Error('Falha ao carregar relatórios');
+      const data = await res.json();
+      setRelatoriosMensais(data.relatorios || []);
+    } catch (err) {
+      console.error('Erro ao carregar relatórios:', err);
+      alert('Erro ao carregar relatórios mensais');
+    } finally {
+      setLoadingRelatorios(false);
+    }
+  };
 
   const carregarEntregasAluno = async (alunoId, nomeAluno = null) => {
     try {
@@ -53,6 +85,54 @@ const DashboardCoordenador = () => {
       setEntregasAluno((prev) => prev.map(e => e.id === entregaId ? { ...e, status: novoStatus } : e));
     } catch (e) {
       alert('Erro ao validar entrega');
+    }
+  };
+
+  const abrirModalResposta = (relatorio) => {
+    setRespostaModal({
+      open: true,
+      relatorioId: relatorio.id,
+      resposta: relatorio.feedback_coordenador || '',
+      relatorioInfo: relatorio
+    });
+  };
+
+  const enviarRespostaRelatorio = async () => {
+    try {
+      if (!respostaModal.resposta.trim()) {
+        alert('Por favor, escreva uma resposta');
+        return;
+      }
+
+      const res = await fetch(
+        `http://localhost:8000/api/coordenadores/relatorios-mensais/${respostaModal.relatorioId}/responder`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            feedback_coordenador: respostaModal.resposta,
+            coordenador_id: user?.id
+          })
+        }
+      );
+
+      if (!res.ok) throw new Error('Falha ao enviar resposta');
+
+      const data = await res.json();
+      alert(data.message || 'Mensagem enviada com sucesso!');
+
+      // Atualizar lista de relatórios
+      if (selectedOrientador) {
+        await carregarRelatoriosMensais(selectedOrientador);
+      }
+
+      // Fechar modal
+      setRespostaModal({ open: false, relatorioId: null, resposta: '', relatorioInfo: null });
+    } catch (err) {
+      console.error('Erro ao enviar resposta:', err);
+      alert('Erro ao enviar resposta: ' + err.message);
     }
   };
 
@@ -422,6 +502,176 @@ const DashboardCoordenador = () => {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-ibmec-blue-800">Relatórios e Análises</h2>
             
+            {/* Relatórios Mensais por Orientador */}
+            <Card>
+              <h3 className="text-xl font-bold text-ibmec-blue-700 mb-4">
+                📅 Relatórios Mensais dos Orientadores
+              </h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Selecione um orientador para visualizar os relatórios mensais enviados por ele e seus alunos.
+              </p>
+
+              {/* Lista de Orientadores */}
+              <div className="mb-6">
+                <label className="label">Selecione o Orientador:</label>
+                <select 
+                  className="input-field"
+                  onChange={(e) => carregarRelatoriosMensais(e.target.value)}
+                  defaultValue=""
+                >
+                  <option value="" disabled>-- Escolha um orientador --</option>
+                  {orientadores.map((orientador) => (
+                    <option key={orientador.id} value={orientador.id}>
+                      {orientador.nome} - {orientador.departamento || 'Sem departamento'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Relatórios do Orientador Selecionado */}
+              {loadingRelatorios && (
+                <div className="text-center py-8 text-gray-600">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ibmec-blue-600 mx-auto mb-4"></div>
+                  Carregando relatórios...
+                </div>
+              )}
+
+              {!loadingRelatorios && selectedOrientador && relatoriosMensais.length === 0 && (
+                <div className="text-center py-8 text-gray-600">
+                  <p className="text-lg">📭 Nenhum relatório mensal encontrado para este orientador.</p>
+                </div>
+              )}
+
+              {!loadingRelatorios && relatoriosMensais.length > 0 && (
+                <div className="space-y-4">
+                  {/* Agrupar relatórios por aluno */}
+                  {(() => {
+                    // Criar objeto para agrupar por aluno
+                    const porAluno = relatoriosMensais.reduce((acc, rel) => {
+                      const alunoKey = rel.aluno_nome || `Aluno #${rel.aluno_id}`;
+                      if (!acc[alunoKey]) {
+                        acc[alunoKey] = [];
+                      }
+                      acc[alunoKey].push(rel);
+                      return acc;
+                    }, {});
+
+                    return Object.entries(porAluno).map(([alunoNome, relatorios]) => (
+                      <div key={alunoNome} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                        <h4 className="font-bold text-ibmec-blue-800 mb-3 flex items-center gap-2">
+                          <span className="text-2xl">👨‍🎓</span>
+                          <span>Aluno: {alunoNome}</span>
+                          <span className="text-sm font-normal text-gray-600">
+                            ({relatorios.length} {relatorios.length === 1 ? 'relatório' : 'relatórios'})
+                          </span>
+                        </h4>
+                        
+                        <div className="space-y-2">
+                          {relatorios
+                            .sort((a, b) => new Date(b.mes) - new Date(a.mes))
+                            .map((rel) => (
+                              <div key={rel.id} className="bg-white p-4 rounded-lg border border-gray-200 hover:shadow-md transition">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="text-lg font-semibold text-ibmec-blue-700">
+                                        📆 {(() => {
+                                          // Corrigir interpretação do mês para evitar problemas de fuso horário
+                                          const [ano, mes] = rel.mes.split('-');
+                                          const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
+                                                        'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+                                          return `${meses[parseInt(mes) - 1]} de ${ano}`;
+                                        })()}
+                                      </span>
+                                    </div>
+                                    {rel.descricao && (
+                                      <p className="text-sm text-gray-700 mb-2">
+                                        <strong>Descrição:</strong> {rel.descricao}
+                                      </p>
+                                    )}
+                                    
+                                    {/* Histórico de Mensagens */}
+                                    {rel.mensagens && rel.mensagens.length > 0 && (
+                                      <div className="mt-3 space-y-3">
+                                        <p className="text-sm font-semibold text-gray-800 mb-2">
+                                          💬 Histórico de Mensagens:
+                                        </p>
+                                        {rel.mensagens.map((msg, idx) => (
+                                          <div 
+                                            key={msg.id || idx}
+                                            className={`p-3 rounded border-l-4 ${
+                                              msg.tipo_usuario === 'coordenador'
+                                                ? 'bg-green-50 border-green-500'
+                                                : 'bg-blue-50 border-blue-500'
+                                            }`}
+                                          >
+                                            <p className={`text-sm font-semibold mb-1 ${
+                                              msg.tipo_usuario === 'coordenador'
+                                                ? 'text-green-800'
+                                                : 'text-blue-800'
+                                            }`}>
+                                              {msg.tipo_usuario === 'coordenador' ? '✅ Coordenador' : '↩️ Orientador'}:
+                                            </p>
+                                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.mensagem}</p>
+                                            {msg.data_criacao && (
+                                              <p className="text-xs text-gray-500 mt-1">
+                                                {new Date(msg.data_criacao).toLocaleString('pt-BR', {
+                                                  day: '2-digit',
+                                                  month: '2-digit',
+                                                  year: 'numeric',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit'
+                                                })}
+                                              </p>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    
+                                    <p className="text-xs text-gray-500 mt-2">
+                                      Enviado em: {new Date(rel.data_envio).toLocaleString('pt-BR', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-col gap-2">
+                                    {rel.arquivo_url ? (
+                                      <a 
+                                        href={rel.arquivo_url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="btn-primary text-sm py-2 px-4 text-center"
+                                      >
+                                        📎 Baixar Arquivo
+                                      </a>
+                                    ) : (
+                                      <span className="text-xs text-gray-500 italic">
+                                        Sem arquivo anexado
+                                      </span>
+                                    )}
+                                    <button
+                                      onClick={() => abrirModalResposta(rel)}
+                                      className="btn-secondary text-sm py-2 px-4"
+                                    >
+                                      💬 Enviar Mensagem
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+            </Card>
+
             <div className="grid md:grid-cols-2 gap-6">
               <Card>
                 <h3 className="text-xl font-bold text-ibmec-blue-700 mb-4">
@@ -732,8 +982,74 @@ const DashboardCoordenador = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Mensagem ao Relatório Mensal */}
+      {respostaModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-ibmec-blue-800">
+                💬 Enviar Mensagem sobre o Relatório
+              </h3>
+              <button 
+                onClick={() => setRespostaModal({ open: false, relatorioId: null, resposta: '', relatorioInfo: null })}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            {respostaModal.relatorioInfo && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">
+                  <strong>Aluno:</strong> {respostaModal.relatorioInfo.aluno_nome}
+                </p>
+                <p className="text-sm text-gray-600 mb-1">
+                  <strong>Mês:</strong> {new Date(respostaModal.relatorioInfo.mes + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </p>
+                {respostaModal.relatorioInfo.descricao && (
+                  <p className="text-sm text-gray-600">
+                    <strong>Descrição:</strong> {respostaModal.relatorioInfo.descricao}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="label">Sua Mensagem</label>
+                <textarea
+                  className="input-field"
+                  rows="8"
+                  placeholder="Escreva sua mensagem sobre o relatório mensal do orientador..."
+                  value={respostaModal.resposta}
+                  onChange={(e) => setRespostaModal((prev) => ({ ...prev, resposta: e.target.value }))}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Esta mensagem será adicionada ao histórico de conversas sobre este relatório.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button 
+                  className="btn-outline" 
+                  onClick={() => setRespostaModal({ open: false, relatorioId: null, resposta: '', relatorioInfo: null })}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="btn-primary" 
+                  onClick={enviarRespostaRelatorio}
+                >
+                  Enviar Resposta
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default DashboardCoordenador;
+
