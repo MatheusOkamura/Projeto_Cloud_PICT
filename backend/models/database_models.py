@@ -138,6 +138,22 @@ class Projeto(Base):
     aluno = relationship("Usuario", back_populates="projetos_como_aluno", foreign_keys=[aluno_id])
     orientador = relationship("Usuario", back_populates="projetos_como_orientador", foreign_keys=[orientador_id])
     entregas = relationship("Entrega", back_populates="projeto")
+    relatorios_mensais = relationship("RelatorioMensal", back_populates="projeto")
+
+class RelatorioMensal(Base):
+    __tablename__ = "relatorios_mensais"
+
+    id = Column(Integer, primary_key=True, index=True)
+    projeto_id = Column(Integer, ForeignKey("projetos.id"), nullable=False)
+    
+    mes = Column(String, nullable=False)  # Formato: YYYY-MM
+    descricao = Column(Text, nullable=True)
+    arquivo = Column(String, nullable=True)
+    
+    data_envio = Column(DateTime, default=datetime.now)
+    
+    # Relacionamento
+    projeto = relationship("Projeto", back_populates="relatorios_mensais")
 
 class Entrega(Base):
     __tablename__ = "entregas"
@@ -182,3 +198,20 @@ class Notificacao(Base):
     
     # Relacionamento
     usuario = relationship("Usuario", back_populates="notificacoes")
+
+class MensagemRelatorio(Base):
+    __tablename__ = "mensagens_relatorios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    entrega_id = Column(Integer, ForeignKey("entregas.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    
+    mensagem = Column(Text, nullable=False)
+    tipo_usuario = Column(String, nullable=False)  # coordenador ou orientador
+    
+    data_criacao = Column(DateTime, default=datetime.now)
+    
+    # Relacionamentos
+    entrega = relationship("Entrega", foreign_keys=[entrega_id])
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
+

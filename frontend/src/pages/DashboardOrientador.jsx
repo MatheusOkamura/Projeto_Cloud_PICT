@@ -27,6 +27,9 @@ const DashboardOrientador = () => {
   const [modalAberto, setModalAberto] = useState(false);
   const [avaliando, setAvaliando] = useState(false);
 
+  // Estados para resposta ao coordenador
+  const [respostaModal, setRespostaModal] = useState({ open: false, relatorioId: null, resposta: '', relatorioInfo: null });
+
   // Buscar dados atualizados do usuário
   useEffect(() => {
     const fetchUserData = async () => {
@@ -145,10 +148,10 @@ const DashboardOrientador = () => {
       const data = await res.json();
       alert(data.message);
       
-      // Recarregar lista de entregas
+      // Recarregar lista de entregas (filtrar relatórios mensais)
       const resEnt = await fetch(`http://localhost:8000/api/orientadores/${user.id}/alunos/${selectedAluno.aluno_id}/entregas`);
       const dataEnt = await resEnt.json();
-      setEntregas(dataEnt.entregas || []);
+      setEntregas((dataEnt.entregas || []).filter(e => e.tipo !== 'relatorio_mensal'));
       
       fecharModalEntrega();
     } catch (err) {
@@ -223,7 +226,7 @@ const DashboardOrientador = () => {
       const dataEnt = await resEnt.json();
       const dataRel = await resRel.json();
       const dataEtapa = await resEtapa.json();
-      setEntregas(dataEnt.entregas || []);
+      setEntregas((dataEnt.entregas || []).filter(e => e.tipo !== 'relatorio_mensal'));
       setRelatorios(dataRel.relatorios || []);
       setEtapaAtual(dataEtapa.etapa || 'proposta');
       setActiveTab('detalhes');
@@ -244,7 +247,10 @@ const DashboardOrientador = () => {
     const fd = new FormData();
     fd.append('mes', uploadState.mes);
     fd.append('descricao', uploadState.descricao);
-    fd.append('arquivo', uploadState.arquivo);
+    // Adicionar arquivo apenas se foi selecionado
+    if (uploadState.arquivo) {
+      fd.append('arquivo', uploadState.arquivo);
+    }
     try {
       const res = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/relatorios-mensais`, {
         method: 'POST',
@@ -278,15 +284,65 @@ const DashboardOrientador = () => {
         body: fd,
       });
       if (!res.ok) throw new Error('Falha ao enviar entrega da etapa');
-      // reload entregas
+      // reload entregas (filtrar relatórios mensais)
       const resEnt = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/entregas`);
       const dataEnt = await resEnt.json();
-      setEntregas(dataEnt.entregas || []);
+      setEntregas((dataEnt.entregas || []).filter(e => e.tipo !== 'relatorio_mensal'));
       setUploadState({ mes: '', descricao: '', arquivo: null, sending: false });
       alert('Entrega da etapa enviada com sucesso!');
     } catch (err) {
       alert(err.message);
       setUploadState((p) => ({ ...p, sending: false }));
+    }
+  };
+
+  const abrirModalRespostaOrientador = (relatorio) => {
+    setRespostaModal({
+      open: true,
+      relatorioId: relatorio.id,
+      resposta: relatorio.resposta_orientador || '',
+      relatorioInfo: relatorio
+    });
+  };
+
+  const enviarRespostaOrientador = async () => {
+    try {
+      if (!respostaModal.resposta.trim()) {
+        alert('Por favor, escreva uma resposta');
+        return;
+      }
+
+      const res = await fetch(
+        `http://localhost:8000/api/orientadores/relatorios-mensais/${respostaModal.relatorioId}/responder`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            resposta_orientador: respostaModal.resposta,
+            orientador_id: user?.id
+          })
+        }
+      );
+
+      if (!res.ok) throw new Error('Falha ao enviar resposta');
+
+      const data = await res.json();
+      alert(data.message || 'Mensagem enviada com sucesso!');
+
+      // Recarregar relatórios
+      if (selectedAluno) {
+        const resRel = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/relatorios-mensais`);
+        const dataRel = await resRel.json();
+        setRelatorios(dataRel.relatorios || []);
+      }
+
+      // Fechar modal
+      setRespostaModal({ open: false, relatorioId: null, resposta: '', relatorioInfo: null });
+    } catch (err) {
+      console.error('Erro ao enviar resposta:', err);
+      alert('Erro ao enviar resposta: ' + err.message);
     }
   };
 
@@ -696,12 +752,12 @@ const DashboardOrientador = () => {
                   <input type="month" name="mes" value={uploadState.mes} onChange={handleUploadChange} required className="input-field" />
                 </div>
                 <div className="md:col-span-1">
-                  <label className="label">Arquivo (PDF/DOC)</label>
-                  <input type="file" name="arquivo" accept=".pdf,.doc,.docx" onChange={handleUploadChange} required className="input-field" />
+                  <label className="label">Arquivo (PDF/DOC) - Opcional</label>
+                  <input type="file" name="arquivo" accept=".pdf,.doc,.docx" onChange={handleUploadChange} className="input-field" />
                 </div>
                 <div className="md:col-span-3">
-                  <label className="label">Descrição (opcional)</label>
-                  <textarea name="descricao" value={uploadState.descricao} onChange={handleUploadChange} className="input-field" rows="3" placeholder="Breve resumo das atividades do mês..."></textarea>
+                  <label className="label">Descrição</label>
+                  <textarea name="descricao" value={uploadState.descricao} onChange={handleUploadChange} className="input-field" rows="3" placeholder="Breve resumo das atividades do mês..." required></textarea>
                 </div>
                 <div className="md:col-span-3 flex justify-end">
                   <button type="submit" disabled={uploadState.sending} className="btn-primary">
@@ -717,19 +773,86 @@ const DashboardOrientador = () => {
               {relatorios.length === 0 ? (
                 <p className="text-gray-600">Nenhum relatório enviado ainda.</p>
               ) : (
-                <ul className="space-y-3">
+                <div className="space-y-4">
                   {relatorios.map((r) => (
-                    <li key={r.id} className="flex items-center justify-between bg-gray-50 p-3 rounded">
-                      <div>
-                        <p className="font-semibold text-ibmec-blue-700">{r.mes} — {r.descricao || 'Sem descrição'}</p>
-                        <p className="text-xs text-gray-500">Enviado em {new Date(r.data_envio).toLocaleString('pt-BR')}</p>
+                    <div key={r.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex-1">
+                          <p className="font-semibold text-ibmec-blue-700 text-lg">{r.titulo || `Relatório - ${r.mes}`}</p>
+                          <p className="text-sm text-gray-600 mt-1">{r.descricao || 'Sem descrição'}</p>
+                          <p className="text-xs text-gray-500 mt-1">Enviado em {new Date(r.data_envio).toLocaleString('pt-BR')}</p>
+                        </div>
+                        {r.arquivo && (
+                          <a className="btn-outline text-sm ml-4" href={`http://localhost:8000/uploads/${r.arquivo}`} target="_blank" rel="noopener noreferrer">
+                            ⬇️ Baixar
+                          </a>
+                        )}
                       </div>
-                      <a className="btn-outline text-sm" href="#" onClick={(e) => e.preventDefault()}>
-                        ⬇️ Baixar
-                      </a>
-                    </li>
+                      
+                      {/* Histórico de Mensagens */}
+                      {r.mensagens && r.mensagens.length > 0 && (
+                        <div className="mt-3 space-y-3">
+                          <p className="text-sm font-semibold text-gray-800 mb-2">
+                            💬 Histórico de Mensagens:
+                          </p>
+                          {r.mensagens.map((msg, idx) => (
+                            <div 
+                              key={msg.id || idx}
+                              className={`p-3 rounded border-l-4 ${
+                                msg.tipo_usuario === 'coordenador'
+                                  ? 'bg-green-50 border-green-500'
+                                  : 'bg-blue-50 border-blue-500 ml-8'
+                              }`}
+                            >
+                              <p className={`text-sm font-semibold mb-1 ${
+                                msg.tipo_usuario === 'coordenador'
+                                  ? 'text-green-800'
+                                  : 'text-blue-800'
+                              }`}>
+                                {msg.tipo_usuario === 'coordenador' ? '💬 Coordenador' : '↩️ Você'}:
+                              </p>
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.mensagem}</p>
+                              {msg.data_criacao && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {new Date(msg.data_criacao).toLocaleString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                          
+                          {/* Botão para adicionar nova mensagem */}
+                          <div className="flex justify-end mt-3">
+                            <button
+                              onClick={() => abrirModalRespostaOrientador(r)}
+                              className="btn-secondary text-xs py-2 px-4"
+                            >
+                              💬 Enviar Mensagem
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Mostrar botão de responder se não houver mensagens ainda */}
+                      {(!r.mensagens || r.mensagens.length === 0) && (
+                        <div className="mt-3 p-4 bg-gray-50 border-l-4 border-gray-300 rounded">
+                          <p className="text-sm text-gray-600 mb-2">Nenhuma mensagem sobre este relatório ainda.</p>
+                          <button
+                            onClick={() => abrirModalRespostaOrientador(r)}
+                            className="btn-secondary text-xs py-2 px-4"
+                          >
+                            💬 Iniciar Conversa
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </Card>
           </div>
@@ -1048,8 +1171,72 @@ const DashboardOrientador = () => {
           </div>
         </div>
       )}
+      
+      {/* Modal de Mensagem sobre Relatório */}
+      {respostaModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-ibmec-blue-800">
+                💬 Enviar Mensagem sobre o Relatório
+              </h3>
+              <button 
+                onClick={() => setRespostaModal({ open: false, relatorioId: null, resposta: '', relatorioInfo: null })}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            {respostaModal.relatorioInfo && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">
+                  <strong>Relatório:</strong> {respostaModal.relatorioInfo.titulo || `Relatório - ${respostaModal.relatorioInfo.mes}`}
+                </p>
+                {respostaModal.relatorioInfo.feedback_coordenador && (
+                  <div className="mt-2 p-3 bg-green-50 border-l-4 border-green-500 rounded">
+                    <p className="text-sm font-semibold text-green-800 mb-1">Mensagem do Coordenador:</p>
+                    <p className="text-sm text-gray-700">{respostaModal.relatorioInfo.feedback_coordenador}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="label">Sua Mensagem</label>
+                <textarea
+                  className="input-field"
+                  rows="8"
+                  placeholder="Escreva sua mensagem sobre o relatório mensal..."
+                  value={respostaModal.resposta}
+                  onChange={(e) => setRespostaModal((prev) => ({ ...prev, resposta: e.target.value }))}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Esta mensagem será adicionada ao histórico de conversas sobre este relatório.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button 
+                  className="btn-outline" 
+                  onClick={() => setRespostaModal({ open: false, relatorioId: null, resposta: '', relatorioInfo: null })}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="btn-primary" 
+                  onClick={enviarRespostaOrientador}
+                >
+                  💬 Enviar Mensagem
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default DashboardOrientador;
+

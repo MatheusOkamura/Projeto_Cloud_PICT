@@ -1,10 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from models.database_models import (
-    Usuario, Projeto, Entrega, TipoUsuario, EtapaProjeto
+    Usuario, Projeto, Entrega, TipoUsuario, EtapaProjeto, MensagemRelatorio
 )
 from database import get_db
 from typing import List
+from datetime import datetime
+import re
 
 router = APIRouter()
 
@@ -160,3 +162,137 @@ async def atualizar_status_etapa(aluno_id: int, novo_status: str, db: Session = 
         "aluno_id": aluno_id,
         "etapa": projeto.etapa_atual.value
     }
+
+@router.get("/coordenadores/orientadores/{orientador_id}/relatorios-mensais")
+async def listar_relatorios_mensais_orientador(orientador_id: int, db: Session = Depends(get_db)):
+    """
+    Listar todos os relatórios mensais enviados por um orientador e seus alunos.
+    Retorna os relatórios agrupados por aluno.
+    """
+    # Verificar se o orientador existe
+    orientador = db.query(Usuario).filter(
+        Usuario.id == orientador_id,
+        Usuario.tipo == TipoUsuario.orientador
+    ).first()
+    
+    if not orientador:
+        raise HTTPException(status_code=404, detail="Orientador não encontrado")
+    
+    # Buscar todos os projetos do orientador
+    projetos = db.query(Projeto).filter(Projeto.orientador_id == orientador_id).all()
+    
+    relatorios_list = []
+    
+    for projeto in projetos:
+        # Buscar relatórios mensais de cada projeto (armazenados como Entregas do tipo "relatorio_mensal")
+        relatorios = db.query(Entrega).filter(
+            Entrega.projeto_id == projeto.id,
+            Entrega.tipo == "relatorio_mensal"
+        ).all()
+        
+        for relatorio in relatorios:
+            # Extrair mês do título (formato: "Relatório Mensal - YYYY-MM")
+            # Melhorar a lógica para garantir que o mês seja extraído corretamente
+            mes = "N/A"
+            if relatorio.titulo:
+                # Tentar extrair o formato YYYY-MM do título
+                match = re.search(r'(\d{4}-\d{2})', relatorio.titulo)
+                if match:
+                    mes = match.group(1)
+                elif "Relatório Mensal - " in relatorio.titulo:
+                    mes = relatorio.titulo.replace("Relatório Mensal - ", "").strip()
+            
+            # Buscar mensagens relacionadas a este relatório
+            mensagens = db.query(MensagemRelatorio).filter(
+                MensagemRelatorio.entrega_id == relatorio.id
+            ).order_by(MensagemRelatorio.data_criacao.asc()).all()
+            
+            mensagens_list = [
+                {
+                    "id": msg.id,
+                    "mensagem": msg.mensagem,
+                    "tipo_usuario": msg.tipo_usuario,
+                    "usuario_id": msg.usuario_id,
+                    "data_criacao": msg.data_criacao.isoformat() if msg.data_criacao else None
+                }
+                for msg in mensagens
+            ]
+            
+            relatorios_list.append({
+                "id": relatorio.id,
+                "mes": mes,
+                "descricao": relatorio.descricao,
+                "arquivo_url": relatorio.arquivo,
+                "data_envio": relatorio.data_entrega.isoformat() if relatorio.data_entrega else None,
+                "feedback_coordenador": relatorio.feedback_coordenador,
+                "data_feedback_coordenador": relatorio.data_avaliacao_coordenador.isoformat() if relatorio.data_avaliacao_coordenador else None,
+                "resposta_orientador": relatorio.feedback_orientador,
+                "data_resposta_orientador": relatorio.data_avaliacao_orientador.isoformat() if relatorio.data_avaliacao_orientador else None,
+                "mensagens": mensagens_list,
+                "aluno_id": projeto.aluno_id,
+                "aluno_nome": projeto.aluno.nome if projeto.aluno else None,
+                "projeto_id": projeto.id,
+                "projeto_titulo": projeto.titulo
+            })
+    
+    return {
+        "orientador_id": orientador_id,
+        "orientador_nome": orientador.nome,
+        "total_relatorios": len(relatorios_list),
+        "relatorios": relatorios_list
+    }
+
+@router.post("/coordenadores/relatorios-mensais/{relatorio_id}/responder")
+async def responder_relatorio_mensal(
+    relatorio_id: int, 
+    feedback_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Coordenador adiciona uma nova mensagem ao relatório mensal.
+    Suporta múltiplas mensagens em sequência.
+    """
+    # Buscar o relatório (entrega do tipo relatorio_mensal)
+    relatorio = db.query(Entrega).filter(
+        Entrega.id == relatorio_id,
+        Entrega.tipo == "relatorio_mensal"
+    ).first()
+    
+    if not relatorio:
+        raise HTTPException(status_code=404, detail="Relatório mensal não encontrado")
+    
+    feedback_coordenador = feedback_data.get("feedback_coordenador", "")
+    coordenador_id = feedback_data.get("coordenador_id")  # ID do coordenador que está enviando
+    
+    if not feedback_coordenador.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="A mensagem não pode estar vazia"
+        )
+    
+    # Criar nova mensagem
+    nova_mensagem = MensagemRelatorio(
+        entrega_id=relatorio_id,
+        usuario_id=coordenador_id,
+        mensagem=feedback_coordenador,
+        tipo_usuario="coordenador",
+        data_criacao=datetime.now()
+    )
+    
+    db.add(nova_mensagem)
+    
+    # Manter compatibilidade com campos antigos (última mensagem do coordenador)
+    relatorio.feedback_coordenador = feedback_coordenador
+    relatorio.data_avaliacao_coordenador = datetime.now()
+    relatorio.status_aprovacao_coordenador = "respondido"
+    
+    db.commit()
+    db.refresh(nova_mensagem)
+    
+    return {
+        "message": "Mensagem enviada com sucesso",
+        "relatorio_id": relatorio.id,
+        "mensagem_id": nova_mensagem.id,
+        "feedback": feedback_coordenador
+    }
+

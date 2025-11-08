@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form, Depends
 from sqlalchemy.orm import Session
 from models.database_models import (
-    Usuario, Projeto, Entrega, TipoUsuario, EtapaProjeto
+    Usuario, Projeto, Entrega, TipoUsuario, EtapaProjeto, MensagemRelatorio
 )
 from database import get_db
 from typing import List, Optional
@@ -184,11 +184,12 @@ async def enviar_relatorio_mensal(
     aluno_id: int,
     mes: str = Form(...),  # formato AAAA-MM
     descricao: Optional[str] = Form(None),
-    arquivo: UploadFile = File(...),
+    arquivo: Optional[UploadFile] = File(None),  # Arquivo agora é opcional
     db: Session = Depends(get_db)
 ):
     """
     Orientador envia relatório mensal sobre o progresso do aluno.
+    O arquivo é opcional - pode enviar apenas descrição textual.
     """
     # Validação básica do mês
     try:
@@ -211,14 +212,16 @@ async def enviar_relatorio_mensal(
             detail="Projeto não encontrado para este orientador e aluno"
         )
 
-    # Salvar arquivo
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_name = f"relatorio_mensal_orientador{orientador_id}_aluno{aluno_id}_{mes}_{timestamp}_{arquivo.filename}"
-    path = UPLOAD_DIR / safe_name
-    
-    with open(path, "wb") as f:
-        content = await arquivo.read()
-        f.write(content)
+    # Salvar arquivo se foi enviado
+    safe_name = None
+    if arquivo:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = f"relatorio_mensal_orientador{orientador_id}_aluno{aluno_id}_{mes}_{timestamp}_{arquivo.filename}"
+        path = UPLOAD_DIR / safe_name
+        
+        with open(path, "wb") as f:
+            content = await arquivo.read()
+            f.write(content)
 
     # Criar entrega no banco
     entrega = Entrega(
@@ -264,19 +267,92 @@ async def listar_relatorios_mensais(orientador_id: int, aluno_id: int, db: Sessi
         Entrega.tipo == "relatorio_mensal"
     ).all()
     
+    # Para cada relatório, buscar as mensagens
+    relatorios_com_mensagens = []
+    for r in relatorios:
+        mensagens = db.query(MensagemRelatorio).filter(
+            MensagemRelatorio.entrega_id == r.id
+        ).order_by(MensagemRelatorio.data_criacao.asc()).all()
+        
+        mensagens_list = [
+            {
+                "id": m.id,
+                "mensagem": m.mensagem,
+                "tipo_usuario": m.tipo_usuario,
+                "usuario_id": m.usuario_id,
+                "data_criacao": m.data_criacao.isoformat() if m.data_criacao else None
+            }
+            for m in mensagens
+        ]
+        
+        relatorios_com_mensagens.append({
+            "id": r.id,
+            "titulo": r.titulo,
+            "descricao": r.descricao,
+            "arquivo": r.arquivo,
+            "data_envio": r.data_entrega.isoformat() if r.data_entrega else None,
+            "feedback_coordenador": r.feedback_coordenador,
+            "data_feedback_coordenador": r.data_avaliacao_coordenador.isoformat() if r.data_avaliacao_coordenador else None,
+            "resposta_orientador": r.feedback_orientador,
+            "data_resposta_orientador": r.data_avaliacao_orientador.isoformat() if r.data_avaliacao_orientador else None,
+            "mensagens": mensagens_list
+        })
+    
     return {
         "orientador_id": orientador_id,
         "aluno_id": aluno_id,
-        "relatorios": [
-            {
-                "id": r.id,
-                "titulo": r.titulo,
-                "descricao": r.descricao,
-                "arquivo": r.arquivo,
-                "data_envio": r.data_entrega.isoformat() if r.data_entrega else None
-            }
-            for r in relatorios
-        ]
+        "relatorios": relatorios_com_mensagens
+    }
+
+@router.post("/orientadores/relatorios-mensais/{relatorio_id}/responder")
+async def orientador_responder_coordenador(
+    relatorio_id: int,
+    feedback_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Orientador responde ao feedback do coordenador sobre um relatório mensal.
+    """
+    # Buscar o relatório (entrega do tipo relatorio_mensal)
+    relatorio = db.query(Entrega).filter(
+        Entrega.id == relatorio_id,
+        Entrega.tipo == "relatorio_mensal"
+    ).first()
+    
+    if not relatorio:
+        raise HTTPException(status_code=404, detail="Relatório mensal não encontrado")
+    
+    resposta_orientador = feedback_data.get("resposta_orientador", "")
+    orientador_id = feedback_data.get("orientador_id")
+    
+    if not resposta_orientador.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="A resposta não pode estar vazia"
+        )
+    
+    # Criar mensagem no sistema de threading
+    nova_mensagem = MensagemRelatorio(
+        entrega_id=relatorio_id,
+        usuario_id=orientador_id,
+        mensagem=resposta_orientador,
+        tipo_usuario="orientador",
+        data_criacao=datetime.now()
+    )
+    db.add(nova_mensagem)
+    
+    # Ainda atualizar o campo feedback_orientador para compatibilidade
+    relatorio.feedback_orientador = resposta_orientador
+    relatorio.data_avaliacao_orientador = datetime.now()
+    
+    db.commit()
+    db.refresh(relatorio)
+    db.refresh(nova_mensagem)
+    
+    return {
+        "message": "Resposta enviada com sucesso",
+        "relatorio_id": relatorio.id,
+        "resposta": resposta_orientador
     }
 
 @router.post("/orientadores/{orientador_id}/alunos/{aluno_id}/entrega-etapa", status_code=status.HTTP_201_CREATED)

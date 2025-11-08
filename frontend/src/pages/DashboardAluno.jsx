@@ -13,6 +13,10 @@ const DashboardAluno = () => {
   const [loading, setLoading] = useState(true);
   const [etapaAtual, setEtapaAtual] = useState('');
   const [userData, setUserData] = useState(user);
+  const [relatoriosMensais, setRelatoriosMensais] = useState([]);
+  const [mesSelecionado, setMesSelecionado] = useState('');
+  const [loadingRelatorios, setLoadingRelatorios] = useState(false);
+  const [entregaRelatorioParcial, setEntregaRelatorioParcial] = useState(null);
 
   useEffect(() => {
     // Função para buscar dados atualizados do usuário
@@ -33,6 +37,22 @@ const DashboardAluno = () => {
         }
       } catch (error) {
         console.error('❌ Erro ao buscar dados do usuário:', error);
+      }
+    };
+
+    // Buscar status da entrega do relatório parcial
+    const fetchStatusRelatorioParcial = async () => {
+      if (!user?.id) return;
+      try {
+        const res = await fetch(`http://localhost:8000/api/alunos/${user.id}/verificar-entrega/relatorio_parcial`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ja_enviou && data.entrega) {
+            setEntregaRelatorioParcial(data.entrega);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar status do relatório parcial:', error);
       }
     };
 
@@ -64,10 +84,38 @@ const DashboardAluno = () => {
       console.log('👤 Usuário atual:', user);
       fetchUserData();
       fetchInscricao();
+      fetchStatusRelatorioParcial();
     } else {
       setLoading(false);
     }
   }, [user?.id, updateUser]);
+
+  // Função para buscar relatórios mensais do aluno
+  const buscarRelatoriosMensais = async () => {
+    if (!inscricao?.orientador_id || !user?.id) return;
+    
+    setLoadingRelatorios(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/orientadores/${inscricao.orientador_id}/alunos/${user.id}/relatorios-mensais`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setRelatoriosMensais(data.relatorios || []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar relatórios mensais:', error);
+    } finally {
+      setLoadingRelatorios(false);
+    }
+  };
+
+  // Buscar relatórios quando tiver orientador definido
+  useEffect(() => {
+    if (inscricao?.orientador_id && user?.id) {
+      buscarRelatoriosMensais();
+    }
+  }, [inscricao?.orientador_id, user?.id]);
 
   // Simular se o aluno tem proposta submetida
   const temProposta = inscricao !== null;
@@ -210,9 +258,9 @@ const DashboardAluno = () => {
                     📋 Status da Inscrição
                   </h2>
                   
-                  {/* Linha Temporal */}
+                  {/* Timeline 1: Processo de Inscrição */}
                   <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-gray-600 mb-4">Progresso do Projeto</h3>
+                    <h3 className="text-sm font-semibold text-gray-600 mb-4">📝 Processo de Inscrição</h3>
                     <div className="relative">
                       {/* Linha de fundo cinza */}
                       <div className="absolute top-5 left-0 w-full h-1 bg-gray-200"></div>
@@ -222,15 +270,14 @@ const DashboardAluno = () => {
                         className="absolute top-5 left-0 h-1 bg-green-500 transition-all duration-500"
                         style={{
                           width: 
-                            etapaAtual === 'artigo_final' ? '100%' :
-                            etapaAtual === 'apresentacao_amostra' ? '75%' :
-                            etapaAtual === 'relatorio_parcial' ? '50%' :
-                            inscricao.status === 'aprovada' ? '25%' :
-                            temProposta ? '12.5%' : '0%'
+                            inscricao.status === 'aprovada' ? '100%' :
+                            inscricao.status_aprovacao_coordenador === 'aprovado' ? '75%' :
+                            inscricao.status_aprovacao_orientador === 'aprovado' ? '50%' :
+                            temProposta ? '25%' : '0%'
                         }}
                       ></div>
                       
-                      {/* Etapas */}
+                      {/* Etapas da Inscrição */}
                       <div className="relative flex justify-between">
                         {/* 1. Proposta Enviada */}
                         <div className="flex flex-col items-center z-10">
@@ -244,76 +291,194 @@ const DashboardAluno = () => {
                           <p className="text-xs mt-2 text-center font-medium w-20">Proposta Enviada</p>
                         </div>
 
-                        {/* 2. Aprovação */}
+                        {/* 2. Aprovação Orientador */}
                         <div className="flex flex-col items-center z-10">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            inscricao.status === 'aprovada' && !etapaAtual
+                            inscricao.status_aprovacao_orientador === 'aprovado'
                               ? 'bg-green-500 text-white' 
-                              : inscricao.status === 'aprovada'
-                              ? 'bg-green-500 text-white'
+                              : inscricao.status_aprovacao_orientador === 'rejeitado'
+                              ? 'bg-red-500 text-white'
+                              : inscricao.status_aprovacao_orientador === 'pendente' && temProposta
+                              ? 'bg-yellow-500 text-white animate-pulse'
                               : 'bg-gray-300 text-gray-600'
                           }`}>
-                            {inscricao.status === 'aprovada' ? '✓' : '2'}
+                            {inscricao.status_aprovacao_orientador === 'aprovado' ? '✓' : 
+                             inscricao.status_aprovacao_orientador === 'rejeitado' ? '✗' : '2'}
                           </div>
-                          <p className="text-xs mt-2 text-center font-medium w-20">Aprovação</p>
+                          <p className="text-xs mt-2 text-center font-medium w-24">Aprovação Orientador</p>
                         </div>
 
-                        {/* 3. Relatório Parcial */}
+                        {/* 3. Aprovação Coordenador */}
                         <div className="flex flex-col items-center z-10">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            etapaAtual === 'relatorio_parcial'
-                              ? 'bg-blue-500 text-white animate-pulse' 
-                              : etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final'
-                              ? 'bg-green-500 text-white'
+                            inscricao.status_aprovacao_coordenador === 'aprovado' || inscricao.status === 'aprovada'
+                              ? 'bg-green-500 text-white' 
+                              : inscricao.status_aprovacao_coordenador === 'rejeitado'
+                              ? 'bg-red-500 text-white'
+                              : inscricao.status_aprovacao_coordenador === 'pendente' && inscricao.status_aprovacao_orientador === 'aprovado'
+                              ? 'bg-yellow-500 text-white animate-pulse'
                               : 'bg-gray-300 text-gray-600'
                           }`}>
-                            {etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final' ? '✓' : '3'}
+                            {inscricao.status_aprovacao_coordenador === 'aprovado' || inscricao.status === 'aprovada' ? '✓' : 
+                             inscricao.status_aprovacao_coordenador === 'rejeitado' ? '✗' : '3'}
                           </div>
-                          <p className="text-xs mt-2 text-center font-medium w-20">Relatório Parcial</p>
+                          <p className="text-xs mt-2 text-center font-medium w-24">Aprovação Coordenador</p>
                         </div>
 
-                        {/* 4. Apresentação */}
+                        {/* 4. Apresentação Realizada */}
                         <div className="flex flex-col items-center z-10">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            etapaAtual === 'apresentacao_amostra'
-                              ? 'bg-blue-500 text-white animate-pulse' 
-                              : etapaAtual === 'artigo_final'
-                              ? 'bg-green-500 text-white'
+                            inscricao.status === 'aprovada'
+                              ? 'bg-green-500 text-white' 
                               : 'bg-gray-300 text-gray-600'
                           }`}>
-                            {etapaAtual === 'artigo_final' ? '✓' : '4'}
+                            {inscricao.status === 'aprovada' ? '✓' : '4'}
                           </div>
-                          <p className="text-xs mt-2 text-center font-medium w-20">Apresentação</p>
-                        </div>
-
-                        {/* 5. Artigo Final */}
-                        <div className="flex flex-col items-center z-10">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            etapaAtual === 'artigo_final'
-                              ? 'bg-blue-500 text-white animate-pulse' 
-                              : 'bg-gray-300 text-gray-600'
-                          }`}>
-                            5
-                          </div>
-                          <p className="text-xs mt-2 text-center font-medium w-20">Artigo Final</p>
+                          <p className="text-xs mt-2 text-center font-medium w-24">Apresentação Realizada</p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Legenda da etapa atual */}
-                    {etapaAtual && (
+                    {/* Legenda da etapa atual de inscrição */}
+                    {!inscricao.status || inscricao.status !== 'aprovada' ? (
                       <div className="mt-4 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
                         <p className="text-sm font-semibold text-blue-800">
-                          📍 Etapa Atual: {
-                            etapaAtual === 'relatorio_parcial' ? 'Envio do Relatório Parcial' :
-                            etapaAtual === 'apresentacao_amostra' ? 'Apresentação na Amostra' :
-                            etapaAtual === 'artigo_final' ? 'Envio do Artigo Final' :
-                            'Aguardando início das etapas'
+                          📍 Status: {
+                            inscricao.status_aprovacao_coordenador === 'rejeitado' ? 'Proposta rejeitada pelo coordenador' :
+                            inscricao.status_aprovacao_orientador === 'rejeitado' ? 'Proposta rejeitada pelo orientador' :
+                            inscricao.status_aprovacao_coordenador === 'pendente' && inscricao.status_aprovacao_orientador === 'aprovado' ? 'Aguardando aprovação do coordenador' :
+                            inscricao.status_aprovacao_orientador === 'pendente' ? 'Aguardando aprovação do orientador' :
+                            temProposta ? 'Proposta em análise' : 'Aguardando envio da proposta'
                           }
                         </p>
                       </div>
-                    )}
+                    ) : null}
                   </div>
+
+                  {/* Timeline 2: Progresso da Iniciação Científica (só aparece se aprovado) */}
+                  {inscricao.status === 'aprovada' && (
+                    <div className="mb-6">
+                      <h3 className="text-sm font-semibold text-gray-600 mb-4">🚀 Progresso da Iniciação Científica</h3>
+                      <div className="relative">
+                        {/* Linha de fundo cinza */}
+                        <div className="absolute top-5 left-0 w-full h-1 bg-gray-200"></div>
+                        
+                        {/* Linha de progresso azul */}
+                        <div 
+                          className="absolute top-5 left-0 h-1 bg-blue-500 transition-all duration-500"
+                          style={{
+                            width: 
+                              etapaAtual === 'concluido' ? '100%' :
+                              etapaAtual === 'artigo_final' ? '75%' :
+                              etapaAtual === 'apresentacao_amostra' ? '50%' :
+                              etapaAtual === 'relatorio_parcial' ? '25%' : '0%'
+                          }}
+                        ></div>
+                        
+                        {/* Etapas do Progresso */}
+                        <div className="relative flex justify-between">
+                          {/* 1. Relatório Parcial */}
+                          <div className="flex flex-col items-center z-10">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado'
+                                ? 'bg-red-500 text-white' 
+                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado'
+                                ? 'bg-red-500 text-white'
+                                : etapaAtual === 'relatorio_parcial'
+                                ? 'bg-blue-500 text-white animate-pulse' 
+                                : etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final' || etapaAtual === 'concluido'
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-300 text-gray-600'
+                            }`}>
+                              {entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado'
+                                ? '✗'
+                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado'
+                                ? '✗'
+                                : etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final' || etapaAtual === 'concluido' 
+                                ? '✓' 
+                                : '1'}
+                            </div>
+                            <p className={`text-xs mt-2 text-center font-medium w-20 ${
+                              entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' || 
+                              (entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado')
+                                ? 'text-red-500'
+                                : ''
+                            }`}>
+                              Relatório Parcial
+                              {entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' && (
+                                <span className="block text-red-500 text-xs">Recusado pelo orientador</span>
+                              )}
+                              {entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado' && (
+                                <span className="block text-red-500 text-xs">Recusado pelo coordenador</span>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* 2. Apresentação na Amostra */}
+                          <div className="flex flex-col items-center z-10">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              etapaAtual === 'apresentacao_amostra'
+                                ? 'bg-blue-500 text-white animate-pulse' 
+                                : etapaAtual === 'artigo_final' || etapaAtual === 'concluido'
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-300 text-gray-600'
+                            }`}>
+                              {etapaAtual === 'artigo_final' || etapaAtual === 'concluido' ? '✓' : '2'}
+                            </div>
+                            <p className="text-xs mt-2 text-center font-medium w-24">Apresentação na Amostra</p>
+                          </div>
+
+                          {/* 3. Artigo Final */}
+                          <div className="flex flex-col items-center z-10">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              etapaAtual === 'artigo_final'
+                                ? 'bg-blue-500 text-white animate-pulse' 
+                                : etapaAtual === 'concluido'
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-300 text-gray-600'
+                            }`}>
+                              {etapaAtual === 'concluido' ? '✓' : '3'}
+                            </div>
+                            <p className="text-xs mt-2 text-center font-medium w-20">Artigo Final</p>
+                          </div>
+
+                          {/* 4. Certificado e Conclusão */}
+                          <div className="flex flex-col items-center z-10">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              etapaAtual === 'concluido'
+                                ? 'bg-green-500 text-white' 
+                                : 'bg-gray-300 text-gray-600'
+                            }`}>
+                              {etapaAtual === 'concluido' ? '✓' : '4'}
+                            </div>
+                            <p className="text-xs mt-2 text-center font-medium w-24">Certificado e Conclusão</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Legenda da etapa atual do progresso */}
+                      {etapaAtual && etapaAtual !== 'concluido' && (
+                        <div className="mt-4 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
+                          <p className="text-sm font-semibold text-blue-800">
+                            📍 Etapa Atual: {
+                              etapaAtual === 'relatorio_parcial' ? 'Envio do Relatório Parcial' :
+                              etapaAtual === 'apresentacao_amostra' ? 'Apresentação na Amostra' :
+                              etapaAtual === 'artigo_final' ? 'Envio do Artigo Final' :
+                              'Aguardando início das etapas'
+                            }
+                          </p>
+                        </div>
+                      )}
+
+                      {etapaAtual === 'concluido' && (
+                        <div className="mt-4 bg-green-50 p-3 rounded-lg border-l-4 border-green-500">
+                          <p className="text-sm font-semibold text-green-800">
+                            🎉 Parabéns! Você concluiu o programa de Iniciação Científica!
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className={`px-4 py-3 rounded-lg border-2 mb-6 ${
                     propostaRejeitada 
@@ -427,6 +592,211 @@ const DashboardAluno = () => {
                     <button className="btn-outline w-full">
                       ✏️ Editar Perfil
                     </button>
+
+                    {/* Divisor */}
+                    <hr className="my-6 border-gray-300" />
+
+                    {/* Relatórios Mensais do Orientador - Dentro do mesmo card */}
+                    <div>
+                      <h3 className="text-xl font-bold text-ibmec-blue-800 mb-2 flex items-center gap-2">
+                        <span className="text-2xl">📅</span>
+                        Relatórios Mensais do Orientador
+                      </h3>
+                      <p className="text-gray-600 text-sm mb-4">
+                        Visualize as conversas entre seu orientador e o coordenador sobre seus relatórios mensais.
+                      </p>
+
+                      {loadingRelatorios ? (
+                        <div className="text-center py-6">
+                          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ibmec-blue-600 mx-auto mb-3"></div>
+                          <p className="text-gray-600 text-sm">Carregando relatórios...</p>
+                        </div>
+                      ) : relatoriosMensais.length === 0 ? (
+                        <div className="text-center py-6">
+                          <div className="text-4xl mb-2">📭</div>
+                          <p className="text-gray-500 text-sm">Nenhum relatório mensal disponível ainda</p>
+                        </div>
+                      ) : (
+                    <div className="space-y-4">
+                      {/* Seletor de Mês */}
+                      <div>
+                        <label className="label">Selecione o Mês:</label>
+                        <select
+                          className="input-field"
+                          value={mesSelecionado}
+                          onChange={(e) => setMesSelecionado(e.target.value)}
+                        >
+                          <option value="">-- Escolha um mês --</option>
+                          {(() => {
+                            // Agrupar relatórios por mês
+                            const mesesUnicos = new Map();
+                            
+                            relatoriosMensais.forEach((rel) => {
+                              const mesMatch = rel.titulo?.match(/\d{4}-\d{2}/);
+                              const mes = mesMatch ? mesMatch[0] : null;
+                              if (mes && !mesesUnicos.has(mes)) {
+                                mesesUnicos.set(mes, mes);
+                              }
+                            });
+
+                            // Converter para array e ordenar (mais recente primeiro)
+                            return Array.from(mesesUnicos.keys())
+                              .sort((a, b) => b.localeCompare(a))
+                              .map((mes) => {
+                                const [ano, mesNum] = mes.split('-');
+                                const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+                                             'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+                                const mesNome = meses[parseInt(mesNum) - 1];
+                                
+                                return (
+                                  <option key={mes} value={mes}>
+                                    {mesNome} de {ano}
+                                  </option>
+                                );
+                              });
+                          })()}
+                        </select>
+                      </div>
+
+                      {/* Exibir todos os relatórios do mês selecionado */}
+                      {mesSelecionado && (() => {
+                        // Filtrar relatórios do mês selecionado
+                        const relatoriosDoMes = relatoriosMensais.filter(rel => {
+                          const mesMatch = rel.titulo?.match(/\d{4}-\d{2}/);
+                          return mesMatch && mesMatch[0] === mesSelecionado;
+                        });
+
+                        if (relatoriosDoMes.length === 0) return null;
+
+                        const [ano, mesNum] = mesSelecionado.split('-');
+                        const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+                                     'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+                        const mesFormatado = `${meses[parseInt(mesNum) - 1]} de ${ano}`;
+
+                        return (
+                          <div className="space-y-4">
+                            <div className="bg-gradient-to-r from-ibmec-blue-600 to-ibmec-blue-700 p-4 rounded-lg">
+                              <div className="flex items-center gap-2 text-white">
+                                <span className="text-2xl">📆</span>
+                                <h3 className="text-xl font-bold">
+                                  Relatórios de {mesFormatado}
+                                </h3>
+                                <span className="ml-auto bg-white text-ibmec-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                  {relatoriosDoMes.length} {relatoriosDoMes.length === 1 ? 'relatório' : 'relatórios'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Listar todos os relatórios do mês */}
+                            {relatoriosDoMes
+                              .sort((a, b) => new Date(b.data_envio) - new Date(a.data_envio))
+                              .map((relatorio, index) => (
+                                <div 
+                                  key={relatorio.id} 
+                                  className="bg-gradient-to-r from-ibmec-blue-50 to-ibmec-gold-50 p-6 rounded-lg border border-ibmec-blue-200"
+                                >
+                                  <div className="flex items-center gap-2 mb-4">
+                                    <span className="text-2xl">�</span>
+                                    <h4 className="text-lg font-bold text-ibmec-blue-800">
+                                      Relatório #{index + 1}
+                                    </h4>
+                                  </div>
+
+                                  {relatorio.descricao && (
+                                    <div className="mb-4 bg-white p-4 rounded-lg">
+                                      <p className="text-sm font-semibold text-gray-700 mb-1">📝 Descrição:</p>
+                                      <p className="text-gray-800">{relatorio.descricao}</p>
+                                    </div>
+                                  )}
+
+                                  <div className="mb-4">
+                                    <p className="text-xs text-gray-600">
+                                      📤 Enviado em: {relatorio.data_envio 
+                                        ? new Date(relatorio.data_envio).toLocaleString('pt-BR', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })
+                                        : 'Data não disponível'
+                                      }
+                                    </p>
+                                  </div>
+
+                                  {/* Histórico de Mensagens entre Orientador e Coordenador */}
+                                  {relatorio.mensagens && relatorio.mensagens.length > 0 ? (
+                                    <div className="space-y-3">
+                                      <p className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                        <span className="text-lg">💬</span>
+                                        Conversa entre Orientador e Coordenador:
+                                      </p>
+                                      {relatorio.mensagens.map((msg, idx) => (
+                                        <div
+                                          key={msg.id || idx}
+                                          className={`p-4 rounded-lg border-l-4 ${
+                                            msg.tipo_usuario === 'coordenador'
+                                              ? 'bg-green-50 border-green-500'
+                                              : 'bg-blue-50 border-blue-500'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-lg">
+                                              {msg.tipo_usuario === 'coordenador' ? '👨‍💼' : '👨‍🏫'}
+                                            </span>
+                                            <p className={`text-sm font-bold ${
+                                              msg.tipo_usuario === 'coordenador'
+                                                ? 'text-green-800'
+                                                : 'text-blue-800'
+                                            }`}>
+                                              {msg.tipo_usuario === 'coordenador' ? 'Coordenador' : 'Orientador'}
+                                            </p>
+                                          </div>
+                                          <p className="text-sm text-gray-800 whitespace-pre-wrap mb-2">
+                                            {msg.mensagem}
+                                          </p>
+                                          {msg.data_criacao && (
+                                            <p className="text-xs text-gray-500">
+                                              {new Date(msg.data_criacao).toLocaleString('pt-BR', {
+                                                day: '2-digit',
+                                                month: '2-digit',
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                              })}
+                                            </p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="bg-white p-4 rounded-lg text-center">
+                                      <p className="text-gray-500 text-sm">
+                                        📭 Ainda não há conversas sobre este relatório
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {relatorio.arquivo && (
+                                    <div className="mt-4">
+                                      <a
+                                        href={`http://localhost:8000/uploads/entregas/${relatorio.arquivo}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn-primary inline-block"
+                                      >
+                                        📎 Baixar Arquivo do Relatório
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                    </div>
                   </div>
                 </Card>
               </div>
