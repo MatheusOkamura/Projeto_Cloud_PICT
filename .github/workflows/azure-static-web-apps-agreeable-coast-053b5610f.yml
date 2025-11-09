@@ -1,13 +1,9 @@
-name: Azure Static Web Apps CI/CD
+name: Azure Static Web Apps CI/CD (DISABLED - OLD)
+
+# Este workflow foi desabilitado - use azure-static-web-apps-icy-sea-0c53d910f.yml
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-    branches:
-      - main
+  workflow_dispatch: # Apenas manual, não automático
 
 jobs:
   build_and_deploy_job:
