@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
+import API_BASE_URL from '../config/api';
 
 const EnviarApresentacaoAmostra = () => {
   const { user } = useAuth();

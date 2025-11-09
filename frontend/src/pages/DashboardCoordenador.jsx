@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
+import API_BASE_URL from '../config/api';
 
 const DashboardCoordenador = () => {
   const { user } = useAuth();
@@ -24,11 +25,11 @@ const DashboardCoordenador = () => {
   const loadInscricoes = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:8000/api/inscricoes');
+      const res = await fetch(`${API_BASE_URL}/inscricoes');
       const data = await res.json();
       setInscricoes(data || []);
     } catch (err) {
-      setError('Falha ao carregar propostas');
+      setError('Falha ao carregar propostas`);
     } finally {
       setLoading(false);
     }
@@ -41,11 +42,11 @@ const DashboardCoordenador = () => {
 
   const loadOrientadores = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/orientadores');
+      const res = await fetch(`${API_BASE_URL}/orientadores');
       const data = await res.json();
       setOrientadores(data.orientadores || []);
     } catch (err) {
-      console.error('Erro ao carregar orientadores:', err);
+      console.error('Erro ao carregar orientadores:`, err);
     }
   };
 

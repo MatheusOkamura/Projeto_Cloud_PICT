@@ -1,7 +1,0 @@
-{
-  "$schema": "https://developer.microsoft.com/en-us/json-schemas/staticwebapps/staticwebapp.config.json",
-  "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": [ "/api/*", "/images/*", "/assets/*", "/favicon.ico" ]
-  }
-}
