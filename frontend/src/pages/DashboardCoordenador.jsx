@@ -42,11 +42,11 @@ const DashboardCoordenador = () => {
 
   const loadOrientadores = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/orientadores');
+      const res = await fetch(`${API_BASE_URL}/orientadores`);
       const data = await res.json();
       setOrientadores(data.orientadores || []);
     } catch (err) {
-      console.error('Erro ao carregar orientadores:`, err);
+      console.error('Erro ao carregar orientadores:', err);
     }
   };
 
@@ -54,7 +54,7 @@ const DashboardCoordenador = () => {
     try {
       setLoadingRelatorios(true);
       setSelectedOrientador(orientadorId);
-      const res = await fetch(`http://localhost:8000/api/coordenadores/orientadores/${orientadorId}/relatorios-mensais`);
+      const res = await fetch(`${API_BASE_URL}/coordenadores/orientadores/${orientadorId}/relatorios-mensais`);
       if (!res.ok) throw new Error('Falha ao carregar relatórios');
       const data = await res.json();
       setRelatoriosMensais(data.relatorios || []);
@@ -68,7 +68,7 @@ const DashboardCoordenador = () => {
 
   const carregarEntregasAluno = async (alunoId, nomeAluno = null) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/coordenadores/alunos/${alunoId}/entregas`);
+      const res = await fetch(`${API_BASE_URL}/coordenadores/alunos/${alunoId}/entregas`);
       if (!res.ok) throw new Error('Falha ao carregar entregas do aluno');
       const data = await res.json();
       setSelectedAlunoEntregas({ id: alunoId, nome: nomeAluno || `Aluno #${alunoId}` });
@@ -80,7 +80,7 @@ const DashboardCoordenador = () => {
 
   const validarEntrega = async (projetoId, entregaId, novoStatus) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/coordenadores/entregas/${projetoId}/${entregaId}/status?novo_status=${encodeURIComponent(novoStatus)}`, { method: 'PATCH' });
+      const res = await fetch(`${API_BASE_URL}/coordenadores/entregas/${projetoId}/${entregaId}/status?novo_status=${encodeURIComponent(novoStatus)}`, { method: 'PATCH' });
       if (!res.ok) throw new Error('Falha ao validar entrega');
       // Atualiza localmente
       setEntregasAluno((prev) => prev.map(e => e.id === entregaId ? { ...e, status: novoStatus } : e));
@@ -106,7 +106,7 @@ const DashboardCoordenador = () => {
       }
 
       const res = await fetch(
-        `http://localhost:8000/api/coordenadores/relatorios-mensais/${respostaModal.relatorioId}/responder`,
+        `${API_BASE_URL}/coordenadores/relatorios-mensais/${respostaModal.relatorioId}/responder`,
         {
           method: 'POST',
           headers: {
@@ -209,7 +209,7 @@ const DashboardCoordenador = () => {
       });
 
       const res = await fetch(
-        `http://localhost:8000/api/inscricoes/${feedbackModal.id}/coordenador/avaliar`,
+        `${API_BASE_URL}/inscricoes/${feedbackModal.id}/coordenador/avaliar`,
         {
           method: 'POST',
           headers: {

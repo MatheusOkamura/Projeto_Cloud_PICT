@@ -9,7 +9,9 @@ const files = [
   'src/pages/EnviarRelatorioParcial.jsx',
   'src/pages/EnviarArtigoFinal.jsx',
   'src/pages/EnviarApresentacaoAmostra.jsx',
-  'src/pages/AuthCallback.jsx'
+  'src/pages/AuthCallback.jsx',
+  'src/pages/CoordenadorStatus.jsx',
+  'src/pages/Cadastro.jsx'
 ];
 
 const oldUrl = 'http://localhost:8000/api';

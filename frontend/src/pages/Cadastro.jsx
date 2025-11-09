@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
+import API_BASE_URL from '../config/api';
 
 const Cadastro = () => {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ const Cadastro = () => {
     }
 
     // Carregar lista de cursos do backend
-    fetch('http://localhost:8000/api/cursos')
+    fetch(`${API_BASE_URL}/cursos')
       .then(res => res.json())
       .then(data => setCursos(data.cursos || []))
       .catch(err => console.error('Erro ao carregar cursos:', err));
@@ -107,9 +108,9 @@ const Cadastro = () => {
         setUploadProgress(true);
         const formDataUpload = new FormData();
         formDataUpload.append('email', formData.email);
-        formDataUpload.append('arquivo', documentoCR);
+        formDataUpload.append('arquivo`, documentoCR);
 
-        const uploadResponse = await fetch('http://localhost:8000/api/auth/upload-documento-cr', {
+        const uploadResponse = await fetch(`${API_BASE_URL}/auth/upload-documento-cr', {
           method: 'POST',
           body: formDataUpload
         });
@@ -145,9 +146,9 @@ const Cadastro = () => {
       }
 
       // Enviar dados para o backend
-      console.log('📤 Enviando dados para completar cadastro:', dadosCadastro);
+      console.log('📤 Enviando dados para completar cadastro:`, dadosCadastro);
       
-      const response = await fetch('http://localhost:8000/api/auth/completar-cadastro', {
+      const response = await fetch(`${API_BASE_URL}/auth/completar-cadastro', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,7 +169,7 @@ const Cadastro = () => {
 
       // Atualizar dados do usuário no localStorage com os dados retornados do backend
       const updatedUser = result.user;
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      localStorage.setItem('user`, JSON.stringify(updatedUser));
       
       setSuccess(true);
       
