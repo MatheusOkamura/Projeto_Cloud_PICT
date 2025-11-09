@@ -34,6 +34,7 @@ jobs:
         run: |
           cd frontend
           npm run build
+          cp staticwebapp.config.json build/
           
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
@@ -44,7 +45,7 @@ jobs:
           action: "upload"
           app_location: "/frontend"
           api_location: ""
-          output_location: "build"
+          output_location: ""
           skip_app_build: true
 
   close_pull_request_job:
