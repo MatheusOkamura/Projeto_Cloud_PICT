@@ -2,8 +2,9 @@
 Script para limpar propostas de teste do banco de dados
 """
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from database import SessionLocal, engine
-from models.database_models import Inscricao, Usuario, Projeto, Entrega
+from models.database_models import Inscricao, Usuario, Projeto, Entrega, RelatorioMensal, MensagemRelatorio
 import sys
 
 def limpar_proposta_aluno_teste():
@@ -44,9 +45,29 @@ def limpar_proposta_aluno_teste():
             if projetos:
                 print(f"   ⚠️  Encontrados {len(projetos)} projeto(s) vinculado(s)")
                 for projeto in projetos:
+                    projeto_id = projeto.id
+                    
+                    # Deletar relatórios mensais e suas mensagens usando SQL direto
+                    try:
+                        # Deletar mensagens
+                        result = db.execute(text(
+                            "DELETE FROM mensagens_relatorios WHERE relatorio_id IN "
+                            "(SELECT id FROM relatorios_mensais WHERE projeto_id = :projeto_id)"
+                        ), {"projeto_id": projeto_id})
+                        
+                        # Deletar relatórios
+                        result = db.execute(text(
+                            "DELETE FROM relatorios_mensais WHERE projeto_id = :projeto_id"
+                        ), {"projeto_id": projeto_id})
+                        
+                        if result.rowcount > 0:
+                            print(f"      - Deletados relatórios mensais do projeto")
+                    except Exception as e:
+                        print(f"      ⚠️  Aviso ao deletar relatórios mensais: {e}")
+                    
                     # Deletar entregas do projeto
                     entregas = db.query(Entrega).filter(
-                        Entrega.projeto_id == projeto.id
+                        Entrega.projeto_id == projeto_id
                     ).all()
                     if entregas:
                         print(f"      - Deletando {len(entregas)} entrega(s)")
@@ -54,7 +75,7 @@ def limpar_proposta_aluno_teste():
                             db.delete(entrega)
                     
                     # Deletar projeto
-                    print(f"      - Deletando projeto ID {projeto.id}")
+                    print(f"      - Deletando projeto ID {projeto_id}")
                     db.delete(projeto)
             
             # Deletar inscrição
@@ -88,19 +109,35 @@ def limpar_todas_inscricoes():
             print("❌ Operação cancelada")
             return
         
-        # Deletar todos os projetos e entregas vinculados
-        projetos = db.query(Projeto).all()
-        for projeto in projetos:
-            entregas = db.query(Entrega).filter(Entrega.projeto_id == projeto.id).all()
-            for entrega in entregas:
-                db.delete(entrega)
-            db.delete(projeto)
+        # Usar SQL direto para evitar problemas com relacionamentos
+        try:
+            # Deletar mensagens de relatórios mensais
+            db.execute(text("DELETE FROM mensagens_relatorios WHERE relatorio_id IN (SELECT id FROM relatorios_mensais)"))
+            print("✓ Mensagens de relatórios deletadas")
+        except Exception as e:
+            print(f"⚠️  Aviso ao deletar mensagens: {e}")
         
-        # Deletar todas as inscrições
-        db.query(Inscricao).delete()
+        try:
+            # Deletar relatórios mensais
+            db.execute(text("DELETE FROM relatorios_mensais"))
+            print("✓ Relatórios mensais deletados")
+        except Exception as e:
+            print(f"⚠️  Aviso ao deletar relatórios mensais: {e}")
+        
+        # Deletar entregas
+        db.execute(text("DELETE FROM entregas"))
+        print("✓ Entregas deletadas")
+        
+        # Deletar projetos
+        db.execute(text("DELETE FROM projetos"))
+        print("✓ Projetos deletados")
+        
+        # Deletar inscrições
+        db.execute(text("DELETE FROM inscricoes"))
+        print("✓ Inscrições deletadas")
+        
         db.commit()
-        
-        print("✅ Todas as inscrições foram deletadas!")
+        print("\n✅ Todas as inscrições foram deletadas!")
         
     except Exception as e:
         db.rollback()
