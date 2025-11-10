@@ -1,4 +1,5 @@
 import { createContext, useState, useContext, useEffect } from 'react';
+import API_BASE_URL from '../config/api';
 
 const AuthContext = createContext(null);
 
@@ -30,7 +31,7 @@ export const AuthProvider = ({ children }) => {
 
   const loginWithOAuth = () => {
     // Redirecionar para endpoint OAuth do backend
-    window.location.href = 'http://localhost:8000/api/auth/login';
+    window.location.href = `${API_BASE_URL}/auth/login`;
   };
 
   const handleOAuthCallback = (token, userData, isNewUser) => {
@@ -47,7 +48,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, senha) => {
     // Login legado (compatibilidade)
     try {
-      const response = await fetch('http://localhost:8000/api/auth/legacy-login', {
+      const response = await fetch(`${API_BASE_URL}/auth/legacy-login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +95,7 @@ export const AuthProvider = ({ children }) => {
     if (!user?.id || !token) return;
     
     try {
-      const response = await fetch(`http://localhost:8000/api/usuarios/${user.id}`, {
+      const response = await fetch(`${API_BASE_URL}/usuarios/${user.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

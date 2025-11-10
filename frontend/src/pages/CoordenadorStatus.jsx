@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
+import API_BASE_URL from '../config/api';
 
 const etapaLabels = {
   proposta: 'Envio e apresentação da proposta',
@@ -22,8 +23,8 @@ const CoordenadorStatus = () => {
 
   const fetchAlunos = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/coordenadores/alunos');
-      if (!res.ok) throw new Error('Falha ao carregar alunos');
+      const res = await fetch(`${API_BASE_URL}/coordenadores/alunos');
+      if (!res.ok) throw new Error('Falha ao carregar alunos`);
       const data = await res.json();
       setAlunos(data.alunos || []);
     } catch (err) {

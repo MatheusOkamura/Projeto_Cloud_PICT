@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
+import API_BASE_URL from '../config/api';
 
 const SubmeterProposta = () => {
   const { user } = useAuth();
@@ -37,7 +38,7 @@ const SubmeterProposta = () => {
   useEffect(() => {
     const fetchOrientadores = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/orientadores');
+        const response = await fetch(`${API_BASE_URL}/orientadores`);
         const data = await response.json();
         setOrientadores(data.orientadores || []);
       } catch (error) {
@@ -117,7 +118,7 @@ const SubmeterProposta = () => {
         submitData.append('projeto', formData.arquivo);
       }
 
-      console.log('Enviando proposta para:', 'http://localhost:8000/api/inscricoes/proposta');
+      console.log('Enviando proposta para:', `${API_BASE_URL}/inscricoes/proposta`);
       console.log('Dados:', {
         usuario_id: user.id,
         titulo_projeto: formData.titulo_projeto,
@@ -126,7 +127,7 @@ const SubmeterProposta = () => {
       });
 
       // Enviar para API
-      const response = await fetch('http://localhost:8000/api/inscricoes/proposta', {
+      const response = await fetch(`${API_BASE_URL}/inscricoes/proposta`, {
         method: 'POST',
         body: submitData
       });

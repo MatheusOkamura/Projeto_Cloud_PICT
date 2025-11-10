@@ -21,6 +21,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",  # Vite dev server
         "http://localhost:3000",  # Alternativo
+        "https://icy-sea-0c53d910f.3.azurestaticapps.net",  # Azure Static Web App
+        "https://*.azurestaticapps.net",  # Outros ambientes do Azure
     ],
     allow_credentials=True,
     allow_methods=["*"],

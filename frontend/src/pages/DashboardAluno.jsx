@@ -5,6 +5,7 @@ import Card from '../components/Card';
 import EnviarRelatorioParcial from './EnviarRelatorioParcial';
 import EnviarApresentacaoAmostra from './EnviarApresentacaoAmostra';
 import EnviarArtigoFinal from './EnviarArtigoFinal';
+import API_BASE_URL from '../config/api';
 
 const DashboardAluno = () => {
   const { user, updateUser } = useAuth();
