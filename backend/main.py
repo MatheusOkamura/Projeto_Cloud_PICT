@@ -23,6 +23,7 @@ app.add_middleware(
         "http://localhost:3000",  # Alternativo
         "https://icy-sea-0c53d910f.3.azurestaticapps.net",  # Azure Static Web App
         "https://*.azurestaticapps.net",  # Outros ambientes do Azure
+        "https://pictback-bzakbsfqc6bgqjcc.brazilsouth-01.azurewebsites.net",  # Backend URL (para testes)
     ],
     allow_credentials=True,
     allow_methods=["*"],
