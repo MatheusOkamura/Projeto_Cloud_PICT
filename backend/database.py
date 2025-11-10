@@ -1,14 +1,29 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 
-# Configuração do SQLite
-SQLALCHEMY_DATABASE_URL = "sqlite:///./iniciacao_cientifica.db"
+load_dotenv()
+
+# Obter URL do banco de dados do ambiente
+# Se DATABASE_URL não estiver definida, usa SQLite como fallback
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL", 
+    "sqlite:///./iniciacao_cientifica.db"
+)
+
+# Configurar connect_args baseado no tipo de banco
+connect_args = {}
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}  # Necessário apenas para SQLite
 
 # Criar engine
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 
-    connect_args={"check_same_thread": False}  # Necessário para SQLite
+    connect_args=connect_args,
+    pool_pre_ping=True,  # Verifica conexões antes de usar
+    echo=False  # Mude para True para debug SQL
 )
 
 # Session local
