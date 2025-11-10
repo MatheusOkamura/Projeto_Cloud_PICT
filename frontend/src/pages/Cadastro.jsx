@@ -158,13 +158,28 @@ const Cadastro = () => {
 
       console.log('📥 Resposta recebida:', response.status, response.statusText);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ Erro do servidor:', errorData);
-        throw new Error(errorData.detail || 'Erro ao completar cadastro');
+      // Parse seguro da resposta
+      let result = null;
+      try {
+        const text = await response.text();
+        if (text) {
+          result = JSON.parse(text);
+        }
+      } catch (parseError) {
+        console.error('❌ Erro ao fazer parse da resposta:', parseError);
+        throw new Error('Erro na comunicação com o servidor. Por favor, tente novamente.');
       }
 
-      const result = await response.json();
+      if (!response.ok) {
+        console.error('❌ Erro do servidor:', result);
+        const errorMessage = result?.detail || result?.message || 'Erro ao completar cadastro';
+        throw new Error(errorMessage);
+      }
+
+      if (!result) {
+        throw new Error('Resposta vazia do servidor');
+      }
+
       console.log('✅ Cadastro completado:', result);
 
       // Atualizar dados do usuário no localStorage com os dados retornados do backend
