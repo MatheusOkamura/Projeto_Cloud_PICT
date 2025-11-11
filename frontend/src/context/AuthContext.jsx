@@ -129,9 +129,17 @@ export const AuthProvider = ({ children }) => {
       });
       
       if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        // Parse seguro do JSON
+        const text = await response.text();
+        if (text && text.trim() !== '') {
+          try {
+            const userData = JSON.parse(text);
+            setUser(userData);
+            localStorage.setItem('user', JSON.stringify(userData));
+          } catch (parseError) {
+            console.error('Erro ao fazer parse dos dados do usuário:', parseError);
+          }
+        }
       }
     } catch (error) {
       console.error('Erro ao recarregar dados do usuário:', error);
