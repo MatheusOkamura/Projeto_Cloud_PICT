@@ -92,18 +92,23 @@ async def listar_entregas_do_aluno(aluno_id: int, db: Session = Depends(get_db))
         ]
     }
 
-@router.patch("/coordenadores/entregas/{entrega_id}/status")
-async def validar_entrega(entrega_id: int, novo_status: str, db: Session = Depends(get_db)):
+@router.patch("/coordenadores/entregas/{projeto_id}/{entrega_id}/status")
+async def validar_entrega(projeto_id: int, entrega_id: int, novo_status: str, db: Session = Depends(get_db)):
     """
-    Atualizar status de uma entrega.
+    Atualizar status de aprovação de uma entrega pelo coordenador.
+    Filtra por projeto_id e entrega_id para maior segurança.
     Status válidos: 'aprovado', 'rejeitado', 'em_revisao', 'pendente'
     """
-    entrega = db.query(Entrega).filter(Entrega.id == entrega_id).first()
+    # Buscar entrega com filtro duplo (projeto + entrega)
+    entrega = db.query(Entrega).filter(
+        Entrega.projeto_id == projeto_id,
+        Entrega.id == entrega_id
+    ).first()
     
     if not entrega:
         raise HTTPException(status_code=404, detail="Entrega não encontrada")
     
-    # Validar status (você pode criar um Enum para isso se preferir)
+    # Validar status
     status_validos = ['aprovado', 'rejeitado', 'em_revisao', 'pendente']
     if novo_status not in status_validos:
         raise HTTPException(
@@ -111,19 +116,22 @@ async def validar_entrega(entrega_id: int, novo_status: str, db: Session = Depen
             detail=f"Status inválido. Use: {', '.join(status_validos)}"
         )
     
-    # Atualizar descrição com status (ou criar campo separado)
-    entrega.descricao = f"{entrega.descricao}\nStatus: {novo_status}"
+    # Atualizar status de aprovação do coordenador (CORRIGIDO)
+    entrega.status_aprovacao_coordenador = novo_status
+    entrega.data_avaliacao_coordenador = datetime.now()
     
     db.commit()
     db.refresh(entrega)
     
     return {
-        "message": "Status da entrega atualizado",
+        "message": "Status da entrega atualizado com sucesso",
         "entrega": {
             "id": entrega.id,
+            "projeto_id": entrega.projeto_id,
             "tipo": entrega.tipo,
             "titulo": entrega.titulo,
-            "status": novo_status
+            "status_aprovacao_coordenador": novo_status,
+            "data_avaliacao": entrega.data_avaliacao_coordenador.isoformat() if entrega.data_avaliacao_coordenador else None
         }
     }
 

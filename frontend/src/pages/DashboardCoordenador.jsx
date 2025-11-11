@@ -25,11 +25,16 @@ const DashboardCoordenador = () => {
   const loadInscricoes = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/inscricoes');
-      const data = await res.json();
+      const res = await fetch(`${API_BASE_URL}/inscricoes`);
+      
+      // Parse seguro
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      
       setInscricoes(data || []);
     } catch (err) {
-      setError('Falha ao carregar propostas`);
+      console.error('Erro ao carregar inscrições:', err);
+      setError('Falha ao carregar propostas');
     } finally {
       setLoading(false);
     }
@@ -43,8 +48,12 @@ const DashboardCoordenador = () => {
   const loadOrientadores = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/orientadores`);
-      const data = await res.json();
-      setOrientadores(data.orientadores || []);
+      
+      // Parse seguro
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      
+      setOrientadores(data?.orientadores || []);
     } catch (err) {
       console.error('Erro ao carregar orientadores:', err);
     }
@@ -55,9 +64,14 @@ const DashboardCoordenador = () => {
       setLoadingRelatorios(true);
       setSelectedOrientador(orientadorId);
       const res = await fetch(`${API_BASE_URL}/coordenadores/orientadores/${orientadorId}/relatorios-mensais`);
+      
       if (!res.ok) throw new Error('Falha ao carregar relatórios');
-      const data = await res.json();
-      setRelatoriosMensais(data.relatorios || []);
+      
+      // Parse seguro
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      
+      setRelatoriosMensais(data?.relatorios || []);
     } catch (err) {
       console.error('Erro ao carregar relatórios:', err);
       alert('Erro ao carregar relatórios mensais');
@@ -69,11 +83,17 @@ const DashboardCoordenador = () => {
   const carregarEntregasAluno = async (alunoId, nomeAluno = null) => {
     try {
       const res = await fetch(`${API_BASE_URL}/coordenadores/alunos/${alunoId}/entregas`);
+      
       if (!res.ok) throw new Error('Falha ao carregar entregas do aluno');
-      const data = await res.json();
+      
+      // Parse seguro
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      
       setSelectedAlunoEntregas({ id: alunoId, nome: nomeAluno || `Aluno #${alunoId}` });
-      setEntregasAluno(data.entregas || []);
+      setEntregasAluno(data?.entregas || []);
     } catch (e) {
+      console.error('Erro ao carregar entregas:', e);
       alert('Erro ao carregar entregas do aluno');
     }
   };
@@ -81,11 +101,29 @@ const DashboardCoordenador = () => {
   const validarEntrega = async (projetoId, entregaId, novoStatus) => {
     try {
       const res = await fetch(`${API_BASE_URL}/coordenadores/entregas/${projetoId}/${entregaId}/status?novo_status=${encodeURIComponent(novoStatus)}`, { method: 'PATCH' });
-      if (!res.ok) throw new Error('Falha ao validar entrega');
-      // Atualiza localmente
-      setEntregasAluno((prev) => prev.map(e => e.id === entregaId ? { ...e, status: novoStatus } : e));
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Erro ao validar entrega:', errorText);
+        throw new Error('Falha ao validar entrega');
+      }
+      
+      // Parse seguro da resposta
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      
+      // Atualiza localmente com o campo correto
+      setEntregasAluno((prev) => prev.map(e => 
+        e.id === entregaId ? { 
+          ...e, 
+          status_aprovacao_coordenador: novoStatus,
+          data_avaliacao_coordenador: new Date().toISOString()
+        } : e
+      ));
+      
+      alert('Entrega avaliada com sucesso!');
     } catch (e) {
-      alert('Erro ao validar entrega');
+      console.error('Erro:', e);
+      alert('Erro ao validar entrega: ' + e.message);
     }
   };
 
