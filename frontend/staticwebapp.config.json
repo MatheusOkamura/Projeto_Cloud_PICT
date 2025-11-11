@@ -1,14 +1,8 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/api/*"]
+    "exclude": ["/assets/*"]
   },
-  "routes": [
-    {
-      "route": "/api/*",
-      "allowedRoles": ["anonymous"]
-    }
-  ],
   "responseOverrides": {
     "404": {
       "rewrite": "/index.html",
