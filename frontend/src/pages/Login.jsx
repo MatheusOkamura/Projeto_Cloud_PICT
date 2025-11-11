@@ -196,7 +196,7 @@ const Login = () => {
 
           <div className="mt-6 pt-6 border-t text-center">
             <p className="text-gray-600">
-              Não tem uma conta? Use qualquer e-mail para criar.
+              Não tem uma conta? Use seu e-mail institucional para criar.
             </p>
           </div>
 
