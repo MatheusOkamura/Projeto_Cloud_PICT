@@ -102,8 +102,7 @@ const Login = () => {
             </div>
           )}
 
-          {/* OAUTH TEMPORARIAMENTE DESABILITADO - Aguardando configuração Azure AD */}
-          {/* 
+          {/* Login OAuth com Microsoft Entra ID */}
           <div className="mb-6">
             <button
               type="button"
@@ -141,7 +140,6 @@ const Login = () => {
               <span className="px-4 bg-white text-gray-500">Ou use o formulário</span>
             </div>
           </div>
-          */}
 
           {/* Formulário de Login Legado */}
           <form onSubmit={handleSubmit} className="space-y-6">
