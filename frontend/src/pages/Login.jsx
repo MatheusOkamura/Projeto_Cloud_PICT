@@ -128,7 +128,7 @@ const Login = () => {
               )}
             </button>
             <p className="text-xs text-gray-500 text-center mt-2">
-              ✅ Recomendado: Login seguro com sua conta institucional
+              ✅ Entrar com login seguro com sua conta institucional
             </p>
           </div>
 
