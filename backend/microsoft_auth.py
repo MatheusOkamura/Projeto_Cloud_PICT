@@ -24,8 +24,11 @@ import uuid
 from typing import Optional, Dict
 import os
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 class MicrosoftOAuth:
     """
@@ -39,8 +42,25 @@ class MicrosoftOAuth:
         self.tenant_id = os.getenv("MICROSOFT_TENANT_ID", "")
         self.client_id = os.getenv("MICROSOFT_CLIENT_ID", "")
         self.client_secret = os.getenv("MICROSOFT_CLIENT_SECRET", "")
-        self.redirect_uri = os.getenv("MICROSOFT_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
-        self.frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        
+        # Redirect URI dinâmico baseado no ambiente
+        self.redirect_uri = os.getenv(
+            "MICROSOFT_REDIRECT_URI",
+            os.getenv("BACKEND_URL", "http://localhost:8000") + "/api/auth/callback"
+        )
+        
+        # Frontend URL para redirecionamento após login
+        self.frontend_url = os.getenv(
+            "FRONTEND_URL",
+            os.getenv("AZURE_STATIC_WEB_APP_URL", "http://localhost:5173")
+        )
+        
+        # Log configuração (sem expor secrets)
+        logger.info(f"Microsoft OAuth initialized:")
+        logger.info(f"  Tenant ID: {self.tenant_id[:8]}..." if self.tenant_id else "  Tenant ID: NOT SET")
+        logger.info(f"  Client ID: {self.client_id[:8]}..." if self.client_id else "  Client ID: NOT SET")
+        logger.info(f"  Redirect URI: {self.redirect_uri}")
+        logger.info(f"  Frontend URL: {self.frontend_url}")
         
         # Endpoints Microsoft
         self.authority = f"https://login.microsoftonline.com/{self.tenant_id}"
@@ -52,6 +72,11 @@ class MicrosoftOAuth:
         self.scopes = ["User.Read", "openid", "profile", "email"]
         
         self.token_cache = None
+        
+        # Validar configuração
+        if not all([self.tenant_id, self.client_id, self.client_secret]):
+            logger.warning("⚠️ Microsoft OAuth credentials not fully configured!")
+            logger.warning("  Set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET")
     
     def get_authorization_url(self) -> Dict[str, str]:
         """

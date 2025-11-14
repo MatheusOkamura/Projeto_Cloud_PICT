@@ -1,0 +1,15 @@
+{
+  "ENVIRONMENT": "production",
+  "DATABASE_URL": "postgresql://username:password@hostname.postgres.database.azure.com:5432/database?sslmode=require",
+  "JWT_SECRET_KEY": "MUDE-ESTA-CHAVE-POR-UMA-SEGURA-ALEATORIA",
+  "SECRET_KEY": "MUDE-ESTA-CHAVE-POR-UMA-SEGURA-ALEATORIA",
+  "MICROSOFT_TENANT_ID": "SEU_TENANT_ID_AQUI",
+  "MICROSOFT_CLIENT_ID": "SEU_CLIENT_ID_AQUI",
+  "MICROSOFT_CLIENT_SECRET": "SEU_CLIENT_SECRET_AQUI",
+  "FRONTEND_URL": "https://icy-sea-0c53d910f.3.azurestaticapps.net",
+  "AZURE_STATIC_WEB_APP_URL": "https://icy-sea-0c53d910f.3.azurestaticapps.net",
+  "BACKEND_URL": "https://pictback-bzakbsfgc6bgcjcc.brazilsouth-01.azurewebsites.net",
+  "PYTHONUNBUFFERED": "1",
+  "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+  "UPLOAD_DIR": "/home/site/wwwroot/uploads"
+}
