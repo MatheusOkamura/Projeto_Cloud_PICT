@@ -74,8 +74,9 @@ app.include_router(alunos.router, prefix="/api", tags=["Alunos"])
 async def root():
     return {
         "message": "API Iniciação Científica Ibmec",
-        "version": "1.0.0",
-        "docs": "/docs"
+        "version": "1.0.1",
+        "docs": "/docs",
+        "status": "production"
     }
 
 @app.get("/api/health")
