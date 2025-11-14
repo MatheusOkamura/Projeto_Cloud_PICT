@@ -1,0 +1,60 @@
+name: Deploy Backend to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: Pictback
+  AZURE_RESOURCE_GROUP: PICTIBMEC
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v3
+
+    - name: 'Setup Python ${{ env.PYTHON_VERSION }}'
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: 'Login to Azure'
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 'Install dependencies'
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: 'Create deployment package'
+      run: |
+        cd backend
+        zip -r ../backend-deploy.zip . \
+          -x "__pycache__/*" \
+          -x "*.pyc" \
+          -x ".env" \
+          -x "*.db" \
+          -x ".venv/*" \
+          -x "venv/*" \
+          -x "uploads/*"
+
+    - name: 'Deploy to Azure Web App'
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: ./backend-deploy.zip
+        
+    - name: 'Azure logout'
+      run: |
+        az logout
