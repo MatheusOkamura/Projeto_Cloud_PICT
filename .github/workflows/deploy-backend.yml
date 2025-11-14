@@ -10,7 +10,6 @@ on:
 
 env:
   AZURE_WEBAPP_NAME: Pictback
-  AZURE_RESOURCE_GROUP: PICTIBMEC
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -25,11 +24,6 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: 'Login to Azure'
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: 'Install dependencies'
       run: |
@@ -53,8 +47,6 @@ jobs:
       uses: azure/webapps-deploy@v2
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: ./backend-deploy.zip
-        
-    - name: 'Azure logout'
-      run: |
-        az logout
+
