@@ -56,14 +56,35 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, senha }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Credenciais inválidas');
+      // Tentar fazer parse do JSON da resposta
+      let data = null;
+      let errorData = null;
+      
+      try {
+        const text = await response.text();
+        if (text) {
+          data = JSON.parse(text);
+        }
+      } catch (parseError) {
+        console.error('Erro ao fazer parse da resposta:', parseError);
+        throw new Error('Erro na comunicação com o servidor. Por favor, tente novamente.');
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = data?.detail || data?.message || 'Credenciais inválidas';
+        throw new Error(errorMessage);
+      }
+
+      if (!data) {
+        throw new Error('Resposta vazia do servidor');
+      }
+
       const userData = data.user;
       const accessToken = data.access_token;
+      
+      if (!userData || !accessToken) {
+        throw new Error('Dados de autenticação incompletos');
+      }
       
       setUser(userData);
       setToken(accessToken);
@@ -74,6 +95,12 @@ export const AuthProvider = ({ children }) => {
       return { user: userData, is_new_user: data.is_new_user };
     } catch (error) {
       console.error('Erro ao fazer login:', error);
+      
+      // Se for erro de rede
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Não foi possível conectar ao servidor. Verifique sua conexão.');
+      }
+      
       throw error;
     }
   };
@@ -102,9 +129,17 @@ export const AuthProvider = ({ children }) => {
       });
       
       if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        // Parse seguro do JSON
+        const text = await response.text();
+        if (text && text.trim() !== '') {
+          try {
+            const userData = JSON.parse(text);
+            setUser(userData);
+            localStorage.setItem('user', JSON.stringify(userData));
+          } catch (parseError) {
+            console.error('Erro ao fazer parse dos dados do usuário:', parseError);
+          }
+        }
       }
     } catch (error) {
       console.error('Erro ao recarregar dados do usuário:', error);

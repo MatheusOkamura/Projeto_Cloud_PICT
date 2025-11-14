@@ -38,12 +38,19 @@ const DashboardOrientador = () => {
       
       try {
         console.log('🔍 Buscando dados do orientador ID:', user.id);
-        const response = await fetch(`http://localhost:8000/api/usuarios/${user.id}`);
+        const response = await fetch(`${API_BASE_URL}/usuarios/${user.id}`);
         if (response.ok) {
-          const data = await response.json();
-          console.log('✅ Dados recebidos do backend:', data);
-          setUserData(data);
-          updateUser(data);
+          try {
+            const text = await response.text();
+            const data = text ? JSON.parse(text) : null;
+            if (data) {
+              console.log('✅ Dados recebidos do backend:', data);
+              setUserData(data);
+              updateUser(data);
+            }
+          } catch (parseError) {
+            console.error('❌ Erro ao fazer parse da resposta:', parseError);
+          }
         } else {
           console.error('❌ Erro na resposta:', response.status);
         }
@@ -61,10 +68,18 @@ const DashboardOrientador = () => {
   useEffect(() => {
     const fetchAlunos = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos`);
+        const res = await fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos`);
         if (!res.ok) throw new Error('Falha ao carregar alunos');
-        const data = await res.json();
-        setAlunos(data.alunos || []);
+        
+        let data = null;
+        try {
+          const text = await res.text();
+          data = text ? JSON.parse(text) : null;
+        } catch (parseError) {
+          throw new Error('Erro ao processar resposta do servidor');
+        }
+        
+        setAlunos(data?.alunos || []);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -80,7 +95,7 @@ const DashboardOrientador = () => {
       if (!user?.id) return;
       setLoadingPropostas(true);
       try {
-        const res = await fetch(`http://localhost:8000/api/inscricoes/orientador/${user.id}/pendentes`);
+        const res = await fetch(`${API_BASE_URL}/inscricoes/orientador/${user.id}/pendentes`);
         if (!res.ok) throw new Error('Falha ao carregar propostas');
         const data = await res.json();
         setPropostasPendentes(data.propostas || []);
@@ -131,7 +146,7 @@ const DashboardOrientador = () => {
       if (feedback) formData.append('feedback', feedback);
 
       const res = await fetch(
-        `http://localhost:8000/api/orientadores/${user.id}/entregas/${entregaSelecionada.id}/avaliar`,
+        `${API_BASE_URL}/orientadores/${user.id}/entregas/${entregaSelecionada.id}/avaliar`,
         {
           method: 'POST',
           headers: {
@@ -150,7 +165,7 @@ const DashboardOrientador = () => {
       alert(data.message);
       
       // Recarregar lista de entregas (filtrar relatórios mensais)
-      const resEnt = await fetch(`http://localhost:8000/api/orientadores/${user.id}/alunos/${selectedAluno.aluno_id}/entregas`);
+      const resEnt = await fetch(`${API_BASE_URL}/orientadores/${user.id}/alunos/${selectedAluno.aluno_id}/entregas`);
       const dataEnt = await resEnt.json();
       setEntregas((dataEnt.entregas || []).filter(e => e.tipo !== 'relatorio_mensal'));
       
@@ -178,7 +193,7 @@ const DashboardOrientador = () => {
       });
 
       const res = await fetch(
-        `http://localhost:8000/api/inscricoes/${selectedProposta.id}/orientador/avaliar`,
+        `${API_BASE_URL}/inscricoes/${selectedProposta.id}/orientador/avaliar`,
         {
           method: 'POST',
           headers: {
@@ -201,7 +216,7 @@ const DashboardOrientador = () => {
       alert(data.message);
       
       // Recarregar lista de propostas
-      const resProp = await fetch(`http://localhost:8000/api/inscricoes/orientador/${user.id}/pendentes`);
+      const resProp = await fetch(`${API_BASE_URL}/inscricoes/orientador/${user.id}/pendentes`);
       const dataProp = await resProp.json();
       setPropostasPendentes(dataProp.propostas || []);
       
@@ -220,9 +235,9 @@ const DashboardOrientador = () => {
     setRelatorios([]);
     try {
       const [resEnt, resRel, resEtapa] = await Promise.all([
-        fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${aluno.aluno_id}/entregas`),
-        fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${aluno.aluno_id}/relatorios-mensais`),
-        fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${aluno.aluno_id}/status-etapa`),
+        fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos/${aluno.aluno_id}/entregas`),
+        fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos/${aluno.aluno_id}/relatorios-mensais`),
+        fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos/${aluno.aluno_id}/status-etapa`),
       ]);
       const dataEnt = await resEnt.json();
       const dataRel = await resRel.json();
@@ -253,14 +268,14 @@ const DashboardOrientador = () => {
       fd.append('arquivo', uploadState.arquivo);
     }
     try {
-      const res = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/relatorios-mensais`, {
+      const res = await fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/relatorios-mensais`, {
         method: 'POST',
         body: fd,
       });
       if (!res.ok) throw new Error('Falha ao enviar relatório');
       const data = await res.json();
       // Recarregar lista
-      const resRel = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/relatorios-mensais`);
+      const resRel = await fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/relatorios-mensais`);
       const dataRel = await resRel.json();
       setRelatorios(dataRel.relatorios || []);
       setUploadState({ mes: '', descricao: '', arquivo: null, sending: false });
@@ -280,13 +295,13 @@ const DashboardOrientador = () => {
     fd.append('descricao', uploadState.descricao);
     fd.append('arquivo', uploadState.arquivo);
     try {
-      const res = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/entrega-etapa`, {
+      const res = await fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/entrega-etapa`, {
         method: 'POST',
         body: fd,
       });
       if (!res.ok) throw new Error('Falha ao enviar entrega da etapa');
       // reload entregas (filtrar relatórios mensais)
-      const resEnt = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/entregas`);
+      const resEnt = await fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/entregas`);
       const dataEnt = await resEnt.json();
       setEntregas((dataEnt.entregas || []).filter(e => e.tipo !== 'relatorio_mensal'));
       setUploadState({ mes: '', descricao: '', arquivo: null, sending: false });
@@ -314,7 +329,7 @@ const DashboardOrientador = () => {
       }
 
       const res = await fetch(
-        `http://localhost:8000/api/orientadores/relatorios-mensais/${respostaModal.relatorioId}/responder`,
+        `${API_BASE_URL}/orientadores/relatorios-mensais/${respostaModal.relatorioId}/responder`,
         {
           method: 'POST',
           headers: {
@@ -334,7 +349,7 @@ const DashboardOrientador = () => {
 
       // Recarregar relatórios
       if (selectedAluno) {
-        const resRel = await fetch(`http://localhost:8000/api/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/relatorios-mensais`);
+        const resRel = await fetch(`${API_BASE_URL}/orientadores/${user?.id}/alunos/${selectedAluno.aluno_id}/relatorios-mensais`);
         const dataRel = await resRel.json();
         setRelatorios(dataRel.relatorios || []);
       }
@@ -692,7 +707,7 @@ const DashboardOrientador = () => {
                               <p className="text-sm">
                                 <span className="font-semibold">Arquivo:</span>{' '}
                                 <a
-                                  href={`http://localhost:8000/uploads/entregas/${entrega.arquivo}`}
+                                  href={`${API_BASE_URL.replace('/api', '')}/uploads/entregas/${entrega.arquivo}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-ibmec-blue-600 hover:underline"
@@ -784,7 +799,7 @@ const DashboardOrientador = () => {
                           <p className="text-xs text-gray-500 mt-1">Enviado em {new Date(r.data_envio).toLocaleString('pt-BR')}</p>
                         </div>
                         {r.arquivo && (
-                          <a className="btn-outline text-sm ml-4" href={`http://localhost:8000/uploads/${r.arquivo}`} target="_blank" rel="noopener noreferrer">
+                          <a className="btn-outline text-sm ml-4" href={`${API_BASE_URL.replace('/api', '')}/uploads/${r.arquivo}`} target="_blank" rel="noopener noreferrer">
                             ⬇️ Baixar
                           </a>
                         )}
@@ -979,7 +994,7 @@ const DashboardOrientador = () => {
                         Arquivo Anexado:
                       </label>
                       <a
-                        href={`http://localhost:8000/uploads/propostas/${selectedProposta.arquivo_projeto}`}
+                        href={`${API_BASE_URL.replace('/api', '')}/uploads/propostas/${selectedProposta.arquivo_projeto}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded transition"
@@ -1103,7 +1118,7 @@ const DashboardOrientador = () => {
                 <div>
                   <h3 className="text-lg font-bold text-ibmec-blue-700 mb-3">📎 Arquivo Anexado</h3>
                   <a
-                    href={`http://localhost:8000/uploads/entregas/${entregaSelecionada.arquivo}`}
+                    href={`${API_BASE_URL.replace('/api', '')}/uploads/entregas/${entregaSelecionada.arquivo}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-3 rounded transition"
@@ -1240,4 +1255,5 @@ const DashboardOrientador = () => {
 };
 
 export default DashboardOrientador;
+
 

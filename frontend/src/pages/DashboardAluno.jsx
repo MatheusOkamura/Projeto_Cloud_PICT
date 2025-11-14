@@ -26,13 +26,22 @@ const DashboardAluno = () => {
       
       try {
         console.log('🔍 Buscando dados do usuário ID:', user.id);
-        const response = await fetch(`http://localhost:8000/api/usuarios/${user.id}`);
+        const response = await fetch(`${API_BASE_URL}/usuarios/${user.id}`);
+        
         if (response.ok) {
-          const data = await response.json();
-          console.log('✅ Dados recebidos do backend:', data);
-          setUserData(data);
-          // Atualizar também o contexto global
-          updateUser(data);
+          // Parse seguro da resposta
+          try {
+            const text = await response.text();
+            const data = text ? JSON.parse(text) : null;
+            if (data) {
+              console.log('✅ Dados recebidos do backend:', data);
+              setUserData(data);
+              // Atualizar também o contexto global
+              updateUser(data);
+            }
+          } catch (parseError) {
+            console.error('❌ Erro ao fazer parse da resposta:', parseError);
+          }
         } else {
           console.error('❌ Erro na resposta:', response.status);
         }
@@ -45,11 +54,16 @@ const DashboardAluno = () => {
     const fetchStatusRelatorioParcial = async () => {
       if (!user?.id) return;
       try {
-        const res = await fetch(`http://localhost:8000/api/alunos/${user.id}/verificar-entrega/relatorio_parcial`);
+        const res = await fetch(`${API_BASE_URL}/alunos/${user.id}/verificar-entrega/relatorio_parcial`);
         if (res.ok) {
-          const data = await res.json();
-          if (data.ja_enviou && data.entrega) {
-            setEntregaRelatorioParcial(data.entrega);
+          try {
+            const text = await res.text();
+            const data = text ? JSON.parse(text) : null;
+            if (data?.ja_enviou && data.entrega) {
+              setEntregaRelatorioParcial(data.entrega);
+            }
+          } catch (parseError) {
+            console.error('Erro ao fazer parse da resposta:', parseError);
           }
         }
       } catch (error) {
@@ -60,12 +74,21 @@ const DashboardAluno = () => {
     // Buscar inscrição do aluno
     const fetchInscricao = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/inscricoes/usuario/${user?.id}`);
-        const data = await response.json();
-        if (data.tem_proposta) {
+        const response = await fetch(`${API_BASE_URL}/inscricoes/usuario/${user?.id}`);
+        
+        let data = null;
+        try {
+          const text = await response.text();
+          data = text ? JSON.parse(text) : null;
+        } catch (parseError) {
+          console.error('Erro ao fazer parse da resposta:', parseError);
+          return;
+        }
+        
+        if (data?.tem_proposta) {
           setInscricao(data.inscricao);
           // Buscar etapa atual do projeto
-          const etapaRes = await fetch(`http://localhost:8000/api/projetos/alunos/${user?.id}/status-etapa`);
+          const etapaRes = await fetch(`${API_BASE_URL}/projetos/alunos/${user?.id}/status-etapa`);
           if (etapaRes.ok) {
             const etapaData = await etapaRes.json();
             setEtapaAtual(etapaData.etapa || '');
@@ -98,7 +121,7 @@ const DashboardAluno = () => {
     setLoadingRelatorios(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/orientadores/${inscricao.orientador_id}/alunos/${user.id}/relatorios-mensais`
+        `${API_BASE_URL}/orientadores/${inscricao.orientador_id}/alunos/${user.id}/relatorios-mensais`
       );
       if (response.ok) {
         const data = await response.json();
@@ -781,7 +804,7 @@ const DashboardAluno = () => {
                                   {relatorio.arquivo && (
                                     <div className="mt-4">
                                       <a
-                                        href={`http://localhost:8000/uploads/entregas/${relatorio.arquivo}`}
+                                        href={`${API_BASE_URL.replace('/api', '')}/uploads/entregas/${relatorio.arquivo}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="btn-primary inline-block"

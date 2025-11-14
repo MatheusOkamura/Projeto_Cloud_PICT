@@ -18,7 +18,7 @@ const EnviarArtigoFinal = () => {
       if (!user?.id) return;
       
       try {
-        const res = await fetch(`http://localhost:8000/api/alunos/${user.id}/verificar-entrega/artigo_final`);
+        const res = await fetch(`${API_BASE_URL}/alunos/${user.id}/verificar-entrega/artigo_final`);
         if (res.ok) {
           const data = await res.json();
           setJaEnviou(data.ja_enviou);
@@ -47,7 +47,7 @@ const EnviarArtigoFinal = () => {
     fd.append('descricao', descricao);
     fd.append('arquivo', arquivo);
     try {
-      const res = await fetch(`http://localhost:8000/api/alunos/${user?.id}/entrega-etapa`, {
+      const res = await fetch(`${API_BASE_URL}/alunos/${user?.id}/entrega-etapa`, {
         method: 'POST',
         body: fd,
       });

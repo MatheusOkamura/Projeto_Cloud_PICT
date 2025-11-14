@@ -102,8 +102,7 @@ const Login = () => {
             </div>
           )}
 
-          {/* OAUTH TEMPORARIAMENTE DESABILITADO - Aguardando configuração Azure AD */}
-          {/* 
+          {/* Login OAuth com Microsoft Entra ID */}
           <div className="mb-6">
             <button
               type="button"
@@ -129,7 +128,7 @@ const Login = () => {
               )}
             </button>
             <p className="text-xs text-gray-500 text-center mt-2">
-              ✅ Recomendado: Login seguro com sua conta institucional
+              ✅ Entrar com login seguro com sua conta institucional
             </p>
           </div>
 
@@ -141,7 +140,6 @@ const Login = () => {
               <span className="px-4 bg-white text-gray-500">Ou use o formulário</span>
             </div>
           </div>
-          */}
 
           {/* Formulário de Login Legado */}
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -198,7 +196,7 @@ const Login = () => {
 
           <div className="mt-6 pt-6 border-t text-center">
             <p className="text-gray-600">
-              Não tem uma conta? Use qualquer e-mail para criar.
+              Não tem uma conta? Use seu e-mail institucional para criar.
             </p>
           </div>
 

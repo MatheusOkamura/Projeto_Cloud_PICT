@@ -41,7 +41,7 @@ const CoordenadorStatus = () => {
   const atualizarEtapa = async (alunoId, etapa) => {
     try {
       setSavingId(alunoId);
-      const res = await fetch(`http://localhost:8000/api/coordenadores/alunos/${alunoId}/status-etapa?novo_status=${etapa}`, {
+      const res = await fetch(`${API_BASE_URL}/coordenadores/alunos/${alunoId}/status-etapa?novo_status=${etapa}`, {
         method: 'PATCH',
       });
       if (!res.ok) throw new Error('Falha ao atualizar etapa');
@@ -62,7 +62,7 @@ const CoordenadorStatus = () => {
     let failures = 0;
     for (const a of alunos) {
       try {
-        const res = await fetch(`http://localhost:8000/api/coordenadores/alunos/${a.aluno_id}/status-etapa?novo_status=${bulkEtapa}`, {
+        const res = await fetch(`${API_BASE_URL}/coordenadores/alunos/${a.aluno_id}/status-etapa?novo_status=${bulkEtapa}`, {
           method: 'PATCH',
         });
         if (!res.ok) throw new Error('Falha ao atualizar a etapa');
