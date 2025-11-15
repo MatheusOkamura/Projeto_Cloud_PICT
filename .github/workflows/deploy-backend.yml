@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: pictback-bzakbsfgc6bgcjcc
+  AZURE_WEBAPP_NAME: Pictback
   PYTHON_VERSION: '3.11'
 
 jobs:
