@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from routes import auth, inscricoes, usuarios
 from routes import orientadores
 from routes import coordenadores
@@ -95,7 +96,7 @@ async def health_check(db: Session = Depends(get_db)):
     
     try:
         # Testar conexão com banco
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         health_status["database"] = "connected"
         logger.info("Health check: database connected")
     except Exception as e:

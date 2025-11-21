@@ -39,6 +39,17 @@ class MicrosoftOAuth:
     """
     
     def __init__(self):
+        # Detectar ambiente
+        self.environment = os.getenv("ENVIRONMENT", "development")
+        self.is_development = self.environment == "development"
+        
+        # Usuários de teste permitidos em desenvolvimento
+        self.test_users = [
+            "aluno.teste@alunos.ibmec.edu.br",
+            "professor.teste@orientador.ibmec.edu.br",
+            "coordenador.teste@coordenador.ibmec.edu.br"
+        ]
+        
         self.tenant_id = os.getenv("MICROSOFT_TENANT_ID", "")
         self.client_id = os.getenv("MICROSOFT_CLIENT_ID", "")
         self.client_secret = os.getenv("MICROSOFT_CLIENT_SECRET", "")
@@ -57,8 +68,9 @@ class MicrosoftOAuth:
         
         # Log configuração (sem expor secrets)
         logger.info(f"Microsoft OAuth initialized:")
-        logger.info(f"  Tenant ID: {self.tenant_id[:8]}..." if self.tenant_id else "  Tenant ID: NOT SET")
-        logger.info(f"  Client ID: {self.client_id[:8]}..." if self.client_id else "  Client ID: NOT SET")
+        logger.info(f"  Environment: {self.environment}")
+        logger.info(f"  Tenant ID: {self.tenant_id[:8]}..." if self.tenant_id else "  Tenant ID: NOT SET (Dev mode enabled)")
+        logger.info(f"  Client ID: {self.client_id[:8]}..." if self.client_id else "  Client ID: NOT SET (Dev mode enabled)")
         logger.info(f"  Redirect URI: {self.redirect_uri}")
         logger.info(f"  Frontend URL: {self.frontend_url}")
         
@@ -72,11 +84,19 @@ class MicrosoftOAuth:
         self.scopes = ["User.Read", "openid", "profile", "email"]
         
         self.token_cache = None
+        self.is_configured = all([self.tenant_id, self.client_id, self.client_secret])
         
         # Validar configuração
-        if not all([self.tenant_id, self.client_id, self.client_secret]):
-            logger.warning("⚠️ Microsoft OAuth credentials not fully configured!")
-            logger.warning("  Set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET")
+        if not self.is_configured:
+            if self.is_development:
+                logger.info("✅ Running in DEVELOPMENT MODE")
+                logger.info("   Test users enabled: aluno.teste, professor.teste, coordenador.teste")
+                logger.warning("⚠️ Microsoft OAuth NOT configured - real users will fail to login")
+            else:
+                logger.warning("⚠️ Microsoft OAuth credentials not fully configured!")
+                logger.warning("  Set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET")
+        else:
+            logger.info("✅ Microsoft OAuth configured and ready")
     
     def get_authorization_url(self) -> Dict[str, str]:
         """
@@ -210,6 +230,7 @@ class MicrosoftOAuth:
         """
         Valida se um email institucional existe no Azure AD (Client Credentials Flow).
         Este método NÃO requer login do usuário.
+        Em modo desenvolvimento, aceita qualquer email @ibmec.edu.br sem validar no Azure.
         
         Args:
             email: Email institucional a ser validado
@@ -231,6 +252,28 @@ class MicrosoftOAuth:
         domain = email.split('@')[1].lower()
         if 'ibmec.edu.br' not in domain:
             result['error'] = 'Email não é institucional do Ibmec'
+            return result
+        
+        # Em modo desenvolvimento, aceitar APENAS usuários de teste
+        if self.is_development and email.lower() in [u.lower() for u in self.test_users]:
+            logger.info(f"✅ Test user in development mode: {email}")
+            
+            # Extrair nome do email
+            username = email.split('@')[0]
+            name_parts = username.replace('.', ' ').split()
+            display_name = ' '.join(word.capitalize() for word in name_parts)
+            
+            result['valid'] = True
+            result['exists'] = True
+            result['user_data'] = {
+                'display_name': display_name,
+                'given_name': name_parts[0].capitalize() if name_parts else username,
+                'surname': name_parts[-1].capitalize() if len(name_parts) > 1 else '',
+                'mail': email,
+                'user_principal_name': email,
+                'job_title': None,
+                'department': None
+            }
             return result
         
         access_token = self._get_access_token_client_credentials()
@@ -279,6 +322,27 @@ class MicrosoftOAuth:
             print(f"❌ Erro ao conectar com Microsoft Graph: {e}")
         
         return result
+    
+    def is_test_user(self, email: str) -> bool:
+        """
+        Verifica se é um usuário de teste permitido em desenvolvimento.
+        
+        Args:
+            email: Email do usuário
+            
+        Returns:
+            True se é usuário de teste, False caso contrário
+        """
+        return email.lower() in [u.lower() for u in self.test_users]
+    
+    def is_oauth_available(self) -> bool:
+        """
+        Verifica se OAuth está configurado e disponível.
+        
+        Returns:
+            True se OAuth está configurado, False caso contrário
+        """
+        return self.is_configured
     
     @staticmethod
     def determine_user_role(email: str) -> str:

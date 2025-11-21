@@ -112,7 +112,7 @@ const DashboardAluno = () => {
     } else {
       setLoading(false);
     }
-  }, [user?.id, updateUser]);
+  }, [user?.id]); // Removido updateUser das dependências para evitar loop infinito
 
   // Função para buscar relatórios mensais do aluno
   const buscarRelatoriosMensais = async () => {
@@ -139,7 +139,8 @@ const DashboardAluno = () => {
     if (inscricao?.orientador_id && user?.id) {
       buscarRelatoriosMensais();
     }
-  }, [inscricao?.orientador_id, user?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inscricao?.orientador_id]); // Removido user.id para evitar re-renders desnecessários
 
   // Simular se o aluno tem proposta submetida
   const temProposta = inscricao !== null;

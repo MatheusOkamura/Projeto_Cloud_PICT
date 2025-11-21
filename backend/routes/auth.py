@@ -71,6 +71,15 @@ async def oauth_login():
     Redireciona o usuário para a página de login da Microsoft.
     """
     try:
+        # Verificar se OAuth está configurado
+        if not microsoft_oauth.is_configured:
+            error_msg = "Microsoft OAuth não configurado. Configure MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID e MICROSOFT_CLIENT_SECRET."
+            print(f"❌ {error_msg}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=error_msg
+            )
+        
         # Gerar URL de autorização
         auth_data = microsoft_oauth.get_authorization_url()
         
@@ -88,6 +97,8 @@ async def oauth_login():
         # Redirecionar para Microsoft
         return RedirectResponse(url=authorization_url)
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Erro ao gerar URL de autorização: {e}")
         raise HTTPException(
@@ -241,22 +252,34 @@ async def oauth_callback(
 @router.post("/legacy-login")
 async def legacy_login(credentials: LoginRequest, db: Session = Depends(get_db)):
     """
-    Endpoint de login legado (compatibilidade com formulário antigo).
-    DEPRECATED: Use OAuth flow (/auth/login) para novos logins.
+    Endpoint de login tradicional com email e senha.
+    Em modo desenvolvimento: aceita APENAS usuários de teste (aluno.teste, professor.teste, coordenador.teste).
+    Em produção: valida email via Microsoft e compara senha armazenada.
+    
+    Para outros usuários em desenvolvimento, use o fluxo OAuth normal.
     """
-    print(f"⚠️ Usando login legado para: {credentials.email}")
+    print(f"🔑 Login tradicional para: {credentials.email}")
+    
+    # Verificar se é usuário de teste em desenvolvimento
+    is_test_user = microsoft_oauth.is_test_user(credentials.email)
+    is_dev_mode = microsoft_oauth.is_development
+    
+    # Em desenvolvimento, permitir APENAS usuários de teste
+    if is_dev_mode and not is_test_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Login direto disponível apenas para usuários de teste em desenvolvimento. Use o fluxo OAuth para outros usuários."
+        )
     
     # Validar email institucional
     validation_result = validate_email(credentials.email)
     
     if not validation_result['valid']:
         error_message = validation_result.get('error', 'Email institucional inválido')
-        
-        if 'indisponível' not in error_message and 'desenvolvimento' not in error_message:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=error_message
-            )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=error_message
+        )
     
     microsoft_user_data = validation_result.get('user_data', {})
     
@@ -265,13 +288,17 @@ async def legacy_login(credentials: LoginRequest, db: Session = Depends(get_db))
     is_new_user = False
     
     if not user_data:
+        # Criar novo usuário
         is_new_user = True
         tipo = detectar_tipo_usuario(credentials.email)
         
         if microsoft_user_data and microsoft_user_data.get('display_name'):
             nome_usuario = microsoft_user_data['display_name']
         else:
-            nome_usuario = credentials.email.split('@')[0]
+            # Gerar nome a partir do email
+            username = credentials.email.split('@')[0]
+            name_parts = username.replace('.', ' ').split()
+            nome_usuario = ' '.join(word.capitalize() for word in name_parts)
         
         # Pegar departamento do Microsoft se disponível
         departamento_usuario = None
@@ -290,12 +317,18 @@ async def legacy_login(credentials: LoginRequest, db: Session = Depends(get_db))
         db.add(user_data)
         db.commit()
         db.refresh(user_data)
+        
+        print(f"✅ Novo usuário criado: {nome_usuario} ({tipo.value})")
     else:
-        if user_data.senha != credentials.senha:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Email ou senha inválidos"
-            )
+        # Verificar senha - para usuários de teste, aceitar qualquer senha
+        if is_test_user and is_dev_mode:
+            print(f"✅ Usuário de teste: bypass de validação de senha")
+        else:
+            if user_data.senha != credentials.senha:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Email ou senha inválidos"
+                )
     
     # Criar JWT token
     token_data = {
