@@ -18,6 +18,27 @@ const DashboardAluno = () => {
   const [mesSelecionado, setMesSelecionado] = useState('');
   const [loadingRelatorios, setLoadingRelatorios] = useState(false);
   const [entregaRelatorioParcial, setEntregaRelatorioParcial] = useState(null);
+  const [inscricoesAbertas, setInscricoesAbertas] = useState(true);
+  const [loadingInscricoesStatus, setLoadingInscricoesStatus] = useState(true);
+
+  // Verificar status das inscrições
+  useEffect(() => {
+    const verificarStatusInscricoes = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/inscricoes/status`);
+        if (response.ok) {
+          const data = await response.json();
+          setInscricoesAbertas(data.inscricoes_abertas);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar status das inscrições:', error);
+      } finally {
+        setLoadingInscricoesStatus(false);
+      }
+    };
+
+    verificarStatusInscricoes();
+  }, []);
 
   useEffect(() => {
     // Função para buscar dados atualizados do usuário
@@ -244,35 +265,66 @@ const DashboardAluno = () => {
 
             {/* Botão de Submissão - Aparece se não tiver proposta OU se foi rejeitada */}
             {(semProposta || propostaRejeitada) && (
-              <Card className={`mb-8 ${
-                propostaRejeitada
-                  ? 'bg-gradient-to-r from-orange-500 to-orange-600'
-                  : 'bg-gradient-to-r from-ibmec-blue-500 to-ibmec-blue-600'
-              } text-white`}>
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-bold mb-2">
-                      {propostaRejeitada
-                        ? '🔄 Proposta Rejeitada - Envie uma Nova'
-                        : ' Pronto para começar?'
-                      }
-                    </h2>
-                    <p className={propostaRejeitada ? 'text-orange-50' : 'text-blue-50'}>
-                      {propostaRejeitada
-                        ? 'Sua proposta foi rejeitada. Revise o feedback abaixo e submeta uma nova proposta melhorada!'
-                        : 'Submeta sua proposta de iniciação científica e dê o primeiro passo na sua jornada de pesquisa!'
-                      }
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => navigate('/submeter-proposta')}
-                    className="bg-white px-8 py-3 rounded-lg font-bold hover:bg-gray-50 transition transform hover:scale-105 whitespace-nowrap"  
-                    style={{ color: propostaRejeitada ? '#f97316' : '#2563eb' }}
-                  >
-                    {propostaRejeitada ? '📝 Enviar Nova Proposta' : '📝 Submeter Proposta'}
-                  </button>
-                </div>
-              </Card>
+              <>
+                {loadingInscricoesStatus ? (
+                  <Card className="mb-8 bg-gray-100">
+                    <div className="flex items-center justify-center py-6">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ibmec-blue-600 mr-3"></div>
+                      <p className="text-gray-600">Verificando status das inscrições...</p>
+                    </div>
+                  </Card>
+                ) : !inscricoesAbertas ? (
+                  <Card className="mb-8 bg-gradient-to-r from-gray-500 to-gray-600 text-white">
+                    <div className="text-center py-8">
+                      <div className="text-6xl mb-4">🔒</div>
+                      <h2 className="text-3xl font-bold mb-3">
+                        Inscrições Fechadas
+                      </h2>
+                      <p className="text-gray-100 text-lg mb-2">
+                        As inscrições para iniciação científica estão temporariamente fechadas.
+                      </p>
+                      <p className="text-gray-200">
+                        Por favor, aguarde até que o coordenador reabra o período de inscrições.
+                      </p>
+                      <div className="mt-6 bg-white/20 backdrop-blur-sm p-4 rounded-lg inline-block">
+                        <p className="text-sm font-semibold">
+                          💡 Você será notificado assim que as inscrições forem reabertas
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  <Card className={`mb-8 ${
+                    propostaRejeitada
+                      ? 'bg-gradient-to-r from-orange-500 to-orange-600'
+                      : 'bg-gradient-to-r from-ibmec-blue-500 to-ibmec-blue-600'
+                  } text-white`}>
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <h2 className="text-2xl font-bold mb-2">
+                          {propostaRejeitada
+                            ? '🔄 Proposta Rejeitada - Envie uma Nova'
+                            : ' Pronto para começar?'
+                          }
+                        </h2>
+                        <p className={propostaRejeitada ? 'text-orange-50' : 'text-blue-50'}>
+                          {propostaRejeitada
+                            ? 'Sua proposta foi rejeitada. Revise o feedback abaixo e submeta uma nova proposta melhorada!'
+                            : 'Submeta sua proposta de iniciação científica e dê o primeiro passo na sua jornada de pesquisa!'
+                          }
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => navigate('/submeter-proposta')}
+                        className="bg-white px-8 py-3 rounded-lg font-bold hover:bg-gray-50 transition transform hover:scale-105 whitespace-nowrap"  
+                        style={{ color: propostaRejeitada ? '#f97316' : '#2563eb' }}
+                      >
+                        {propostaRejeitada ? '📝 Enviar Nova Proposta' : '📝 Submeter Proposta'}
+                      </button>
+                    </div>
+                  </Card>
+                )}
+              </>
             )}
 
             {/* Status da Inscrição e Entrega de Etapa - Aparece apenas se tiver proposta */}

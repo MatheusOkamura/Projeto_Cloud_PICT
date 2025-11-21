@@ -5,7 +5,8 @@ from models.database_models import (
     Usuario, 
     StatusInscricao,
     Projeto,
-    EtapaProjeto
+    EtapaProjeto,
+    ConfiguracaoSistema
 )
 from typing import List, Optional
 from datetime import datetime
@@ -18,6 +19,37 @@ router = APIRouter()
 # Diretório para salvar arquivos (em produção, usar S3 ou similar)
 UPLOAD_DIR = Path("uploads/propostas")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+@router.get("/status")
+def verificar_status_inscricoes(db: Session = Depends(get_db)):
+    """
+    Endpoint público para verificar se as inscrições estão abertas.
+    Usado pelo frontend para mostrar mensagens apropriadas aos alunos.
+    """
+    try:
+        config = db.query(ConfiguracaoSistema).filter(
+            ConfiguracaoSistema.chave == 'inscricoes_abertas'
+        ).first()
+        
+        inscricoes_abertas = True  # Padrão
+        data_atualizacao = None
+        
+        if config:
+            inscricoes_abertas = config.valor.lower() == 'true'
+            data_atualizacao = config.data_atualizacao.isoformat() if config.data_atualizacao else None
+        
+        return {
+            "inscricoes_abertas": inscricoes_abertas,
+            "mensagem": "As inscrições estão abertas!" if inscricoes_abertas else "As inscrições estão fechadas no momento.",
+            "data_atualizacao": data_atualizacao
+        }
+    except Exception as e:
+        # Retornar True como padrão em caso de erro
+        return {
+            "inscricoes_abertas": True,
+            "mensagem": "As inscrições estão abertas!",
+            "data_atualizacao": None
+        }
 
 @router.post("/proposta", status_code=status.HTTP_201_CREATED)
 async def submeter_proposta(
@@ -34,7 +66,23 @@ async def submeter_proposta(
 ):
     """
     Submeter nova proposta de iniciação científica.
+    Verifica se as inscrições estão abertas antes de permitir o envio.
     """
+    # Verificar se as inscrições estão abertas
+    config = db.query(ConfiguracaoSistema).filter(
+        ConfiguracaoSistema.chave == 'inscricoes_abertas'
+    ).first()
+    
+    inscricoes_abertas = True  # Padrão se não houver configuração
+    if config:
+        inscricoes_abertas = config.valor.lower() == 'true'
+    
+    if not inscricoes_abertas:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="As inscrições estão fechadas no momento. Entre em contato com a coordenação para mais informações."
+        )
+    
     # Buscar dados do usuário no banco de dados
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:

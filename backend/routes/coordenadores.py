@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from models.database_models import (
-    Usuario, Projeto, Entrega, TipoUsuario, EtapaProjeto, MensagemRelatorio
+    Usuario, Projeto, Entrega, TipoUsuario, EtapaProjeto, MensagemRelatorio, ConfiguracaoSistema
 )
 from database import get_db
 from typing import List
@@ -302,5 +302,92 @@ async def responder_relatorio_mensal(
         "relatorio_id": relatorio.id,
         "mensagem_id": nova_mensagem.id,
         "feedback": feedback_coordenador
+    }
+
+@router.get("/coordenadores/configuracoes/inscricoes")
+async def obter_status_inscricoes(db: Session = Depends(get_db)):
+    """
+    Retorna o status atual das inscrições (abertas ou fechadas).
+    """
+    config = db.query(ConfiguracaoSistema).filter(
+        ConfiguracaoSistema.chave == 'inscricoes_abertas'
+    ).first()
+    
+    if not config:
+        # Se não existir, criar com valor padrão (abertas)
+        config = ConfiguracaoSistema(
+            chave='inscricoes_abertas',
+            valor='true',
+            descricao='Define se as inscrições para iniciação científica estão abertas',
+            data_atualizacao=datetime.now()
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    
+    inscricoes_abertas = config.valor.lower() == 'true'
+    
+    return {
+        "inscricoes_abertas": inscricoes_abertas,
+        "data_atualizacao": config.data_atualizacao.isoformat() if config.data_atualizacao else None,
+        "atualizado_por": config.atualizado_por
+    }
+
+@router.post("/coordenadores/configuracoes/inscricoes/toggle")
+async def alternar_status_inscricoes(
+    dados: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Alterna o status das inscrições (abre ou fecha).
+    Requer: coordenador_id no corpo da requisição.
+    """
+    coordenador_id = dados.get('coordenador_id')
+    novo_status = dados.get('abrir')  # True para abrir, False para fechar
+    
+    if coordenador_id is None:
+        raise HTTPException(status_code=400, detail="ID do coordenador é obrigatório")
+    
+    if novo_status is None:
+        raise HTTPException(status_code=400, detail="Campo 'abrir' é obrigatório (true/false)")
+    
+    # Verificar se o usuário é coordenador
+    coordenador = db.query(Usuario).filter(
+        Usuario.id == coordenador_id,
+        Usuario.tipo == TipoUsuario.coordenador
+    ).first()
+    
+    if not coordenador:
+        raise HTTPException(status_code=403, detail="Apenas coordenadores podem alterar este status")
+    
+    # Buscar ou criar configuração
+    config = db.query(ConfiguracaoSistema).filter(
+        ConfiguracaoSistema.chave == 'inscricoes_abertas'
+    ).first()
+    
+    if not config:
+        config = ConfiguracaoSistema(
+            chave='inscricoes_abertas',
+            valor='true' if novo_status else 'false',
+            descricao='Define se as inscrições para iniciação científica estão abertas',
+            data_atualizacao=datetime.now(),
+            atualizado_por=coordenador_id
+        )
+        db.add(config)
+    else:
+        config.valor = 'true' if novo_status else 'false'
+        config.data_atualizacao = datetime.now()
+        config.atualizado_por = coordenador_id
+    
+    db.commit()
+    db.refresh(config)
+    
+    status_texto = "abertas" if novo_status else "fechadas"
+    
+    return {
+        "message": f"Inscrições {status_texto} com sucesso!",
+        "inscricoes_abertas": novo_status,
+        "data_atualizacao": config.data_atualizacao.isoformat(),
+        "atualizado_por": coordenador.nome
     }
 

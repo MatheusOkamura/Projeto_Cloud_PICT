@@ -77,6 +77,7 @@ class Inscricao(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)  # Ano da iniciação científica
     
     # Dados do aluno (snapshot no momento da inscrição)
     nome = Column(String, nullable=False)
@@ -123,6 +124,7 @@ class Projeto(Base):
     aluno_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     orientador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     inscricao_id = Column(Integer, ForeignKey("inscricoes.id"), nullable=True)
+    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)  # Ano da iniciação científica
     
     titulo = Column(String, nullable=False)
     area_conhecimento = Column(String, nullable=False)
@@ -145,6 +147,7 @@ class RelatorioMensal(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     projeto_id = Column(Integer, ForeignKey("projetos.id"), nullable=False)
+    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)  # Ano da iniciação científica
     
     mes = Column(String, nullable=False)  # Formato: YYYY-MM
     descricao = Column(Text, nullable=True)
@@ -161,6 +164,7 @@ class Entrega(Base):
     id = Column(Integer, primary_key=True, index=True)
     projeto_id = Column(Integer, ForeignKey("projetos.id"), nullable=False)
     aluno_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)  # Ano da iniciação científica
     
     tipo = Column(String, nullable=False)  # relatorio_parcial, relatorio_mensal, apresentacao, artigo_final
     titulo = Column(String, nullable=False)
@@ -214,4 +218,17 @@ class MensagemRelatorio(Base):
     # Relacionamentos
     entrega = relationship("Entrega", foreign_keys=[entrega_id])
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
+
+class ConfiguracaoSistema(Base):
+    """
+    Tabela para armazenar configurações do sistema.
+    """
+    __tablename__ = "configuracoes_sistema"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chave = Column(String, unique=True, nullable=False, index=True)  # Ex: 'inscricoes_abertas'
+    valor = Column(String, nullable=False)  # Ex: 'true' ou 'false'
+    descricao = Column(Text, nullable=True)
+    data_atualizacao = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    atualizado_por = Column(Integer, nullable=True)  # ID do usuário que atualizou
 

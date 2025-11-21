@@ -21,6 +21,9 @@ const DashboardCoordenador = () => {
   const [selectedOrientador, setSelectedOrientador] = useState(null);
   const [loadingRelatorios, setLoadingRelatorios] = useState(false);
   const [respostaModal, setRespostaModal] = useState({ open: false, relatorioId: null, resposta: '', relatorioInfo: null });
+  const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
+  const [inscricoesAbertas, setInscricoesAbertas] = useState(true);
+  const [loadingInscricoesStatus, setLoadingInscricoesStatus] = useState(false);
 
   const loadInscricoes = async () => {
     try {
@@ -43,6 +46,7 @@ const DashboardCoordenador = () => {
   useEffect(() => {
     loadInscricoes();
     loadOrientadores();
+    carregarStatusInscricoes();
   }, []);
 
   const loadOrientadores = async () => {
@@ -56,6 +60,57 @@ const DashboardCoordenador = () => {
       setOrientadores(data?.orientadores || []);
     } catch (err) {
       console.error('Erro ao carregar orientadores:', err);
+    }
+  };
+
+  const carregarStatusInscricoes = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/coordenadores/configuracoes/inscricoes`);
+      if (!res.ok) throw new Error('Falha ao carregar status das inscrições');
+      
+      const data = await res.json();
+      setInscricoesAbertas(data.inscricoes_abertas);
+    } catch (err) {
+      console.error('Erro ao carregar status das inscrições:', err);
+    }
+  };
+
+  const alternarStatusInscricoes = async () => {
+    const novoStatus = !inscricoesAbertas;
+    const confirmacao = confirm(
+      novoStatus 
+        ? '🔓 Tem certeza que deseja ABRIR as inscrições? Os alunos poderão submeter novas propostas.'
+        : '🔒 Tem certeza que deseja FECHAR as inscrições? Os alunos não poderão mais submeter propostas até que sejam reabertas.'
+    );
+    
+    if (!confirmacao) return;
+    
+    try {
+      setLoadingInscricoesStatus(true);
+      const res = await fetch(`${API_BASE_URL}/coordenadores/configuracoes/inscricoes/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          coordenador_id: user?.id,
+          abrir: novoStatus
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Falha ao alterar status das inscrições');
+      }
+
+      const data = await res.json();
+      setInscricoesAbertas(novoStatus);
+      alert(data.message || `Inscrições ${novoStatus ? 'abertas' : 'fechadas'} com sucesso!`);
+    } catch (err) {
+      console.error('Erro ao alterar status:', err);
+      alert('Erro: ' + err.message);
+    } finally {
+      setLoadingInscricoesStatus(false);
     }
   };
 
@@ -340,21 +395,57 @@ const DashboardCoordenador = () => {
         </div>
 
         {/* Acesso rápido à Gestão de Status */}
-        <Card>
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-ibmec-blue-700">⚙️ Gestão de Status dos Projetos</h2>
-              <p className="text-gray-600 text-sm mt-1">
-                Atualize a etapa/estado dos projetos dos alunos (proposta, relatório parcial, apresentação na amostra, artigo final, finalizado).
-              </p>
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <Card>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-ibmec-blue-700">⚙️ Gestão de Status dos Projetos</h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Atualize a etapa/estado dos projetos dos alunos (proposta, relatório parcial, apresentação na amostra, artigo final, finalizado).
+                </p>
+              </div>
+              <div className="shrink-0">
+                <button className="btn-primary" onClick={() => navigate('/coordenador/status')}>
+                  Abrir Gestão
+                </button>
+              </div>
             </div>
-            <div className="shrink-0">
-              <button className="btn-primary" onClick={() => navigate('/coordenador/status')}>
-                Abrir Gestão de Status
-              </button>
+          </Card>
+
+          <Card>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-ibmec-blue-700 mb-1">
+                  {inscricoesAbertas ? '🔓 Inscrições Abertas' : '🔒 Inscrições Fechadas'}
+                </h2>
+                <p className="text-gray-600 text-sm">
+                  {inscricoesAbertas 
+                    ? 'Os alunos podem submeter propostas de iniciação científica.'
+                    : 'Os alunos não podem submeter novas propostas no momento.'}
+                </p>
+              </div>
+              <div className="shrink-0">
+                <button 
+                  className={`px-6 py-3 rounded-lg font-semibold transition ${
+                    loadingInscricoesStatus 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : inscricoesAbertas
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                  onClick={alternarStatusInscricoes}
+                  disabled={loadingInscricoesStatus}
+                >
+                  {loadingInscricoesStatus 
+                    ? '⏳ Aguarde...' 
+                    : inscricoesAbertas 
+                      ? '🔒 Fechar Inscrições' 
+                      : '🔓 Abrir Inscrições'}
+                </button>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
 
         {/* Tabs */}
         <div className="mb-6">

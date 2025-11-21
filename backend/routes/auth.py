@@ -190,6 +190,37 @@ async def oauth_callback(
         else:
             print(f"✅ Usuário existente: {user_data.email}")
         
+        # Verificar se o usuário precisa completar o cadastro
+        # Para usuários de teste em modo desenvolvimento, pular verificação
+        precisa_completar_cadastro = False
+        
+        if not (microsoft_oauth.is_development and microsoft_oauth.is_test_user(user_data.email)):
+            # Verificar se dados obrigatórios estão preenchidos
+            if user_data.tipo == TipoUsuario.aluno:
+                # Aluno precisa de: CPF, telefone, curso, matricula
+                if not all([user_data.cpf, user_data.telefone, user_data.curso, user_data.matricula]):
+                    precisa_completar_cadastro = True
+                    print(f"⚠️ Aluno precisa completar cadastro: faltam dados obrigatórios")
+            
+            elif user_data.tipo == TipoUsuario.orientador:
+                # Orientador precisa de: telefone, departamento
+                if not all([user_data.telefone, user_data.departamento]):
+                    precisa_completar_cadastro = True
+                    print(f"⚠️ Orientador precisa completar cadastro: faltam dados obrigatórios")
+            
+            elif user_data.tipo == TipoUsuario.coordenador:
+                # Coordenador precisa de: telefone, departamento
+                if not all([user_data.telefone, user_data.departamento]):
+                    precisa_completar_cadastro = True
+                    print(f"⚠️ Coordenador precisa completar cadastro: faltam dados obrigatórios")
+        else:
+            print(f"✅ Usuário de teste: bypass de verificação de cadastro completo")
+        
+        # Se precisa completar cadastro, marcar como novo usuário para frontend redirecionar
+        if precisa_completar_cadastro:
+            is_new_user = True
+            print(f"📝 Usuário será redirecionado para completar cadastro")
+        
         # Criar JWT token
         token_data = {
             "sub": user_data.email,
@@ -329,6 +360,37 @@ async def legacy_login(credentials: LoginRequest, db: Session = Depends(get_db))
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Email ou senha inválidos"
                 )
+    
+    # Verificar se o usuário precisa completar o cadastro
+    # Para usuários de teste em modo desenvolvimento, pular verificação
+    precisa_completar_cadastro = False
+    
+    if not (is_dev_mode and is_test_user):
+        # Verificar se dados obrigatórios estão preenchidos
+        if user_data.tipo == TipoUsuario.aluno:
+            # Aluno precisa de: CPF, telefone, curso, matricula
+            if not all([user_data.cpf, user_data.telefone, user_data.curso, user_data.matricula]):
+                precisa_completar_cadastro = True
+                print(f"⚠️ Aluno precisa completar cadastro: faltam dados obrigatórios")
+        
+        elif user_data.tipo == TipoUsuario.orientador:
+            # Orientador precisa de: telefone, departamento
+            if not all([user_data.telefone, user_data.departamento]):
+                precisa_completar_cadastro = True
+                print(f"⚠️ Orientador precisa completar cadastro: faltam dados obrigatórios")
+        
+        elif user_data.tipo == TipoUsuario.coordenador:
+            # Coordenador precisa de: telefone, departamento
+            if not all([user_data.telefone, user_data.departamento]):
+                precisa_completar_cadastro = True
+                print(f"⚠️ Coordenador precisa completar cadastro: faltam dados obrigatórios")
+    else:
+        print(f"✅ Usuário de teste: bypass de verificação de cadastro completo")
+    
+    # Se precisa completar cadastro, marcar como novo usuário para frontend redirecionar
+    if precisa_completar_cadastro:
+        is_new_user = True
+        print(f"📝 Usuário será redirecionado para completar cadastro")
     
     # Criar JWT token
     token_data = {

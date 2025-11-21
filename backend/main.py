@@ -8,7 +8,7 @@ from routes import coordenadores
 from routes import alunos
 from config import settings, unidades
 from database import get_db
-from models.database_models import Curso, Usuario, TipoUsuario, StatusUsuario
+from models.database_models import Curso, Usuario, TipoUsuario, StatusUsuario, ConfiguracaoSistema
 import os
 import logging
 

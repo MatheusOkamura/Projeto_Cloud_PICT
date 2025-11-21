@@ -10,6 +10,9 @@ const SubmeterProposta = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [orientadores, setOrientadores] = useState([]);
+  const [inscricoesAbertas, setInscricoesAbertas] = useState(true);
+  const [mensagemInscricoes, setMensagemInscricoes] = useState('');
+  const [loadingStatus, setLoadingStatus] = useState(true);
   
   const [formData, setFormData] = useState({
     titulo_projeto: '',
@@ -34,18 +37,27 @@ const SubmeterProposta = () => {
     'Outro'
   ];
 
-  // Carregar lista de orientadores
+  // Carregar lista de orientadores e status das inscrições
   useEffect(() => {
-    const fetchOrientadores = async () => {
+    const fetchData = async () => {
       try {
+        // Verificar status das inscrições
+        const statusResponse = await fetch(`${API_BASE_URL}/inscricoes/status`);
+        const statusData = await statusResponse.json();
+        setInscricoesAbertas(statusData.inscricoes_abertas);
+        setMensagemInscricoes(statusData.mensagem);
+        
+        // Carregar orientadores
         const response = await fetch(`${API_BASE_URL}/orientadores`);
         const data = await response.json();
         setOrientadores(data.orientadores || []);
       } catch (error) {
-        console.error('Erro ao carregar orientadores:', error);
+        console.error('Erro ao carregar dados:', error);
+      } finally {
+        setLoadingStatus(false);
       }
     };
-    fetchOrientadores();
+    fetchData();
   }, []);
 
   const handleChange = (e) => {
@@ -167,17 +179,66 @@ const SubmeterProposta = () => {
           </p>
         </div>
 
-        {/* Informações do Aluno */}
-        <Card className="mb-6">
-          <div className="flex items-center space-x-4 mb-4">
-            <div className="text-4xl">👤</div>
-            <div>
-              <h2 className="text-xl font-bold text-ibmec-blue-800">{user?.nome}</h2>
-              <p className="text-gray-600">{user?.email}</p>
-              <p className="text-sm text-gray-500">Curso: {user?.curso}</p>
+        {/* Carregando status */}
+        {loadingStatus && (
+          <Card>
+            <div className="text-center py-8 text-gray-600">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ibmec-blue-600 mx-auto mb-4"></div>
+              Verificando status das inscrições...
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
+
+        {/* Inscrições Fechadas */}
+        {!loadingStatus && !inscricoesAbertas && (
+          <Card>
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">🔒</div>
+              <h2 className="text-2xl font-bold text-red-600 mb-4">
+                Inscrições Fechadas
+              </h2>
+              <p className="text-gray-700 mb-6">
+                {mensagemInscricoes}
+              </p>
+              <p className="text-gray-600 mb-4">
+                As inscrições para iniciação científica estão temporariamente fechadas. 
+                Entre em contato com a coordenação para mais informações.
+              </p>
+              <button
+                onClick={() => navigate('/dashboard-aluno')}
+                className="btn-primary"
+              >
+                Voltar ao Dashboard
+              </button>
+            </div>
+          </Card>
+        )}
+
+        {/* Formulário - só mostra se inscrições estão abertas */}
+        {!loadingStatus && inscricoesAbertas && (
+          <>
+            {/* Banner de Inscrições Abertas */}
+            <Card className="mb-6 bg-green-50 border-green-200">
+              <div className="flex items-center gap-3">
+                <div className="text-3xl">✅</div>
+                <div>
+                  <h3 className="text-lg font-bold text-green-800">Inscrições Abertas!</h3>
+                  <p className="text-sm text-green-700">{mensagemInscricoes}</p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Informações do Aluno */}
+            <Card className="mb-6">
+              <div className="flex items-center space-x-4 mb-4">
+                <div className="text-4xl">👤</div>
+                <div>
+                  <h2 className="text-xl font-bold text-ibmec-blue-800">{user?.nome}</h2>
+                  <p className="text-gray-600">{user?.email}</p>
+                  <p className="text-sm text-gray-500">Curso: {user?.curso}</p>
+                </div>
+              </div>
+            </Card>
 
         {/* Formulário */}
         <Card>
@@ -412,12 +473,14 @@ const SubmeterProposta = () => {
                     Enviando...
                   </span>
                 ) : (
-                  '✉️ Submeter Proposta'
+                  '📤 Submeter Proposta'
                 )}
               </button>
             </div>
           </form>
         </Card>
+        </>
+        )}
       </div>
     </div>
   );
