@@ -13,6 +13,7 @@ const SubmeterProposta = () => {
   const [inscricoesAbertas, setInscricoesAbertas] = useState(true);
   const [mensagemInscricoes, setMensagemInscricoes] = useState('');
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [anoAtivo, setAnoAtivo] = useState(new Date().getFullYear());
   
   const [formData, setFormData] = useState({
     titulo_projeto: '',
@@ -46,6 +47,7 @@ const SubmeterProposta = () => {
         const statusData = await statusResponse.json();
         setInscricoesAbertas(statusData.inscricoes_abertas);
         setMensagemInscricoes(statusData.mensagem);
+        setAnoAtivo(statusData.ano_ativo || new Date().getFullYear());
         
         // Carregar orientadores
         const response = await fetch(`${API_BASE_URL}/orientadores`);
@@ -236,6 +238,14 @@ const SubmeterProposta = () => {
                   <h2 className="text-xl font-bold text-ibmec-blue-800">{user?.nome}</h2>
                   <p className="text-gray-600">{user?.email}</p>
                   <p className="text-sm text-gray-500">Curso: {user?.curso}</p>
+                </div>
+              </div>
+              
+              {/* Informação do Ano */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-600">📅 Ano da iniciação científica:</span>
+                  <span className="font-bold text-ibmec-blue-700 text-lg">{anoAtivo}</span>
                 </div>
               </div>
             </Card>

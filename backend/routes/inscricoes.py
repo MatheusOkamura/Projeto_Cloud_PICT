@@ -23,30 +23,42 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 @router.get("/status")
 def verificar_status_inscricoes(db: Session = Depends(get_db)):
     """
-    Endpoint público para verificar se as inscrições estão abertas.
+    Endpoint público para verificar se as inscrições estão abertas e qual o ano ativo.
     Usado pelo frontend para mostrar mensagens apropriadas aos alunos.
     """
     try:
+        # Buscar configuração de inscrições abertas
         config = db.query(ConfiguracaoSistema).filter(
             ConfiguracaoSistema.chave == 'inscricoes_abertas'
         ).first()
         
+        # Buscar ano ativo
+        config_ano = db.query(ConfiguracaoSistema).filter(
+            ConfiguracaoSistema.chave == 'ano_ativo_inscricoes'
+        ).first()
+        
         inscricoes_abertas = True  # Padrão
         data_atualizacao = None
+        ano_ativo = datetime.now().year  # Padrão
         
         if config:
             inscricoes_abertas = config.valor.lower() == 'true'
             data_atualizacao = config.data_atualizacao.isoformat() if config.data_atualizacao else None
         
+        if config_ano:
+            ano_ativo = int(config_ano.valor)
+        
         return {
             "inscricoes_abertas": inscricoes_abertas,
-            "mensagem": "As inscrições estão abertas!" if inscricoes_abertas else "As inscrições estão fechadas no momento.",
+            "ano_ativo": ano_ativo,
+            "mensagem": f"As inscrições estão abertas para o ano {ano_ativo}!" if inscricoes_abertas else "As inscrições estão fechadas no momento.",
             "data_atualizacao": data_atualizacao
         }
     except Exception as e:
         # Retornar True como padrão em caso de erro
         return {
             "inscricoes_abertas": True,
+            "ano_ativo": datetime.now().year,
             "mensagem": "As inscrições estão abertas!",
             "data_atualizacao": None
         }
@@ -66,7 +78,7 @@ async def submeter_proposta(
 ):
     """
     Submeter nova proposta de iniciação científica.
-    Verifica se as inscrições estão abertas antes de permitir o envio.
+    Verifica se as inscrições estão abertas e usa o ano ativo definido pelo coordenador.
     """
     # Verificar se as inscrições estão abertas
     config = db.query(ConfiguracaoSistema).filter(
@@ -82,6 +94,13 @@ async def submeter_proposta(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="As inscrições estão fechadas no momento. Entre em contato com a coordenação para mais informações."
         )
+    
+    # Buscar ano ativo das inscrições
+    config_ano = db.query(ConfiguracaoSistema).filter(
+        ConfiguracaoSistema.chave == 'ano_ativo_inscricoes'
+    ).first()
+    
+    ano_ativo = int(config_ano.valor) if config_ano else datetime.now().year
     
     # Buscar dados do usuário no banco de dados
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
@@ -111,6 +130,7 @@ async def submeter_proposta(
     # Criar proposta no banco de dados
     nova_inscricao = InscricaoModel(
         usuario_id=usuario_id,
+        ano=ano_ativo,  # Usar o ano ativo definido pelo coordenador
         nome=usuario.nome,
         email=usuario.email,
         cpf=usuario.cpf,

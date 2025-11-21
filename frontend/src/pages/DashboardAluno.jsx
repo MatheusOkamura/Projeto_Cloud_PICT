@@ -274,23 +274,18 @@ const DashboardAluno = () => {
                     </div>
                   </Card>
                 ) : !inscricoesAbertas ? (
-                  <Card className="mb-8 bg-gradient-to-r from-gray-500 to-gray-600 text-white">
+                  <Card className="mb-8">
                     <div className="text-center py-8">
                       <div className="text-6xl mb-4">🔒</div>
-                      <h2 className="text-3xl font-bold mb-3">
+                      <h2 className="text-3xl font-bold text-gray-800 mb-3">
                         Inscrições Fechadas
                       </h2>
-                      <p className="text-gray-100 text-lg mb-2">
+                      <p className="text-gray-700 text-lg mb-2">
                         As inscrições para iniciação científica estão temporariamente fechadas.
                       </p>
-                      <p className="text-gray-200">
+                      <p className="text-gray-600">
                         Por favor, aguarde até que o coordenador reabra o período de inscrições.
                       </p>
-                      <div className="mt-6 bg-white/20 backdrop-blur-sm p-4 rounded-lg inline-block">
-                        <p className="text-sm font-semibold">
-                          💡 Você será notificado assim que as inscrições forem reabertas
-                        </p>
-                      </div>
                     </div>
                   </Card>
                 ) : (
