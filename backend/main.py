@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="API Iniciação Científica Ibmec",
     description="API para gerenciamento do programa de Iniciação Científica",
-    version="1.0.0"
+    version="1.0.3"
 )
 
 # Configuração CORS dinâmica baseada em ambiente
@@ -74,9 +74,10 @@ app.include_router(alunos.router, prefix="/api", tags=["Alunos"])
 async def root():
     return {
         "message": "API Iniciação Científica Ibmec",
-        "version": "1.0.1",
+        "version": "1.0.3",
         "docs": "/docs",
-        "status": "production"
+        "status": "production",
+        "deploy": "automated"
     }
 
 @app.get("/api/health")

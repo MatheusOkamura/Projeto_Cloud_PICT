@@ -1,4 +1,4 @@
-name: Deploy Backend to Azure App Service
+name: Deploy Backend to Azure App Service (OIDC)
 
 on:
   push:
@@ -6,11 +6,16 @@ on:
       - main
     paths:
       - 'backend/**'
-      - '.github/workflows/deploy-backend.yml'
+      - '.github/workflows/deploy-backend-oidc.yml'
   workflow_dispatch:
 
+# IMPORTANTE: Permissões necessárias para OIDC
+permissions:
+  id-token: write
+  contents: read
+
 env:
-  AZURE_WEBAPP_NAME: Pictback
+  AZURE_WEBAPP_NAME: pictback-bzakbsfgc6bgcjcc
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -44,10 +49,17 @@ jobs:
           -x "venv/*" \
           -x "uploads/*"
 
+    # Azure Login com OIDC (Recomendado pela Microsoft)
+    - name: 'Azure Login'
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    # Deploy usando Azure CLI (alternativa ao webapps-deploy)
     - name: 'Deploy to Azure Web App'
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: ./backend-deploy.zip
-
