@@ -307,8 +307,16 @@ async def responder_relatorio_mensal(
 @router.get("/coordenadores/configuracoes/inscricoes")
 async def obter_status_inscricoes(db: Session = Depends(get_db)):
     """
-    Retorna o status atual das inscrições (abertas ou fechadas).
+    Retorna o status atual das inscrições (abertas ou fechadas) e o ano ativo.
     """
+    # Buscar configuração do ano ativo
+    config_ano = db.query(ConfiguracaoSistema).filter(
+        ConfiguracaoSistema.chave == 'ano_ativo_inscricoes'
+    ).first()
+    
+    ano_ativo = int(config_ano.valor) if config_ano else datetime.now().year
+    
+    # Buscar configuração de inscrições abertas
     config = db.query(ConfiguracaoSistema).filter(
         ConfiguracaoSistema.chave == 'inscricoes_abertas'
     ).first()
@@ -319,6 +327,7 @@ async def obter_status_inscricoes(db: Session = Depends(get_db)):
             chave='inscricoes_abertas',
             valor='true',
             descricao='Define se as inscrições para iniciação científica estão abertas',
+            ano=datetime.now().year,
             data_atualizacao=datetime.now()
         )
         db.add(config)
@@ -329,6 +338,7 @@ async def obter_status_inscricoes(db: Session = Depends(get_db)):
     
     return {
         "inscricoes_abertas": inscricoes_abertas,
+        "ano_ativo": ano_ativo,
         "data_atualizacao": config.data_atualizacao.isoformat() if config.data_atualizacao else None,
         "atualizado_por": config.atualizado_por
     }
@@ -339,11 +349,12 @@ async def alternar_status_inscricoes(
     db: Session = Depends(get_db)
 ):
     """
-    Alterna o status das inscrições (abre ou fecha).
-    Requer: coordenador_id no corpo da requisição.
+    Alterna o status das inscrições (abre ou fecha) para um ano específico.
+    Requer: coordenador_id, abrir (true/false), e ano (opcional) no corpo da requisição.
     """
     coordenador_id = dados.get('coordenador_id')
     novo_status = dados.get('abrir')  # True para abrir, False para fechar
+    ano = dados.get('ano', datetime.now().year)  # Ano das inscrições
     
     if coordenador_id is None:
         raise HTTPException(status_code=400, detail="ID do coordenador é obrigatório")
@@ -360,7 +371,27 @@ async def alternar_status_inscricoes(
     if not coordenador:
         raise HTTPException(status_code=403, detail="Apenas coordenadores podem alterar este status")
     
-    # Buscar ou criar configuração
+    # Atualizar o ano ativo se estiver abrindo inscrições
+    if novo_status:
+        config_ano = db.query(ConfiguracaoSistema).filter(
+            ConfiguracaoSistema.chave == 'ano_ativo_inscricoes'
+        ).first()
+        
+        if not config_ano:
+            config_ano = ConfiguracaoSistema(
+                chave='ano_ativo_inscricoes',
+                valor=str(ano),
+                descricao='Ano ativo para as inscrições de iniciação científica',
+                data_atualizacao=datetime.now(),
+                atualizado_por=coordenador_id
+            )
+            db.add(config_ano)
+        else:
+            config_ano.valor = str(ano)
+            config_ano.data_atualizacao = datetime.now()
+            config_ano.atualizado_por = coordenador_id
+    
+    # Buscar ou criar configuração de inscrições abertas
     config = db.query(ConfiguracaoSistema).filter(
         ConfiguracaoSistema.chave == 'inscricoes_abertas'
     ).first()
@@ -370,12 +401,14 @@ async def alternar_status_inscricoes(
             chave='inscricoes_abertas',
             valor='true' if novo_status else 'false',
             descricao='Define se as inscrições para iniciação científica estão abertas',
+            ano=ano,
             data_atualizacao=datetime.now(),
             atualizado_por=coordenador_id
         )
         db.add(config)
     else:
         config.valor = 'true' if novo_status else 'false'
+        config.ano = ano
         config.data_atualizacao = datetime.now()
         config.atualizado_por = coordenador_id
     
@@ -385,8 +418,9 @@ async def alternar_status_inscricoes(
     status_texto = "abertas" if novo_status else "fechadas"
     
     return {
-        "message": f"Inscrições {status_texto} com sucesso!",
+        "message": f"Inscrições {status_texto} para o ano {ano} com sucesso!",
         "inscricoes_abertas": novo_status,
+        "ano": ano,
         "data_atualizacao": config.data_atualizacao.isoformat(),
         "atualizado_por": coordenador.nome
     }

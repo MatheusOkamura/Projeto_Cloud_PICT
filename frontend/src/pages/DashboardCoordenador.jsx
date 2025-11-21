@@ -22,6 +22,7 @@ const DashboardCoordenador = () => {
   const [loadingRelatorios, setLoadingRelatorios] = useState(false);
   const [respostaModal, setRespostaModal] = useState({ open: false, relatorioId: null, resposta: '', relatorioInfo: null });
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
+  const [anoAtivo, setAnoAtivo] = useState(new Date().getFullYear());
   const [inscricoesAbertas, setInscricoesAbertas] = useState(true);
   const [loadingInscricoesStatus, setLoadingInscricoesStatus] = useState(false);
 
@@ -70,6 +71,8 @@ const DashboardCoordenador = () => {
       
       const data = await res.json();
       setInscricoesAbertas(data.inscricoes_abertas);
+      setAnoAtivo(data.ano_ativo || new Date().getFullYear());
+      setAnoSelecionado(data.ano_ativo || new Date().getFullYear());
     } catch (err) {
       console.error('Erro ao carregar status das inscrições:', err);
     }
@@ -77,9 +80,15 @@ const DashboardCoordenador = () => {
 
   const alternarStatusInscricoes = async () => {
     const novoStatus = !inscricoesAbertas;
+    
+    if (novoStatus && !anoSelecionado) {
+      alert('⚠️ Por favor, selecione um ano antes de abrir as inscrições.');
+      return;
+    }
+    
     const confirmacao = confirm(
       novoStatus 
-        ? '🔓 Tem certeza que deseja ABRIR as inscrições? Os alunos poderão submeter novas propostas.'
+        ? `🔓 Tem certeza que deseja ABRIR as inscrições para o ano ${anoSelecionado}? Os alunos poderão submeter novas propostas.`
         : '🔒 Tem certeza que deseja FECHAR as inscrições? Os alunos não poderão mais submeter propostas até que sejam reabertas.'
     );
     
@@ -94,7 +103,8 @@ const DashboardCoordenador = () => {
         },
         body: JSON.stringify({
           coordenador_id: user?.id,
-          abrir: novoStatus
+          abrir: novoStatus,
+          ano: parseInt(anoSelecionado)
         })
       });
 
@@ -105,6 +115,9 @@ const DashboardCoordenador = () => {
 
       const data = await res.json();
       setInscricoesAbertas(novoStatus);
+      if (novoStatus) {
+        setAnoAtivo(parseInt(anoSelecionado));
+      }
       alert(data.message || `Inscrições ${novoStatus ? 'abertas' : 'fechadas'} com sucesso!`);
     } catch (err) {
       console.error('Erro ao alterar status:', err);
@@ -413,36 +426,83 @@ const DashboardCoordenador = () => {
           </Card>
 
           <Card>
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex-1">
-                <h2 className="text-xl font-bold text-ibmec-blue-700 mb-1">
-                  {inscricoesAbertas ? '🔓 Inscrições Abertas' : '🔒 Inscrições Fechadas'}
-                </h2>
-                <p className="text-gray-600 text-sm">
-                  {inscricoesAbertas 
-                    ? 'Os alunos podem submeter propostas de iniciação científica.'
-                    : 'Os alunos não podem submeter novas propostas no momento.'}
-                </p>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold text-ibmec-blue-700 mb-1">
+                    {inscricoesAbertas ? '🔓 Inscrições Abertas' : '🔒 Inscrições Fechadas'}
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    {inscricoesAbertas 
+                      ? `Os alunos podem submeter propostas para o ano ${anoAtivo}.`
+                      : 'Os alunos não podem submeter novas propostas no momento.'}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <button 
+                    className={`px-6 py-3 rounded-lg font-semibold transition ${
+                      loadingInscricoesStatus 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : inscricoesAbertas
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
+                    }`}
+                    onClick={alternarStatusInscricoes}
+                    disabled={loadingInscricoesStatus}
+                  >
+                    {loadingInscricoesStatus 
+                      ? '⏳ Aguarde...' 
+                      : inscricoesAbertas 
+                        ? '🔒 Fechar Inscrições' 
+                        : '🔓 Abrir Inscrições'}
+                  </button>
+                </div>
               </div>
-              <div className="shrink-0">
-                <button 
-                  className={`px-6 py-3 rounded-lg font-semibold transition ${
-                    loadingInscricoesStatus 
-                      ? 'bg-gray-400 cursor-not-allowed' 
-                      : inscricoesAbertas
-                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                        : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
-                  onClick={alternarStatusInscricoes}
-                  disabled={loadingInscricoesStatus}
-                >
-                  {loadingInscricoesStatus 
-                    ? '⏳ Aguarde...' 
-                    : inscricoesAbertas 
-                      ? '🔒 Fechar Inscrições' 
-                      : '🔓 Abrir Inscrições'}
-                </button>
-              </div>
+              
+              {/* Seletor de Ano - visível apenas quando as inscrições estão fechadas */}
+              {!inscricoesAbertas && (
+                <div className="border-t pt-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    📅 Selecione o ano para abertura das inscrições:
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={anoSelecionado}
+                      onChange={(e) => setAnoSelecionado(e.target.value)}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent"
+                    >
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const ano = new Date().getFullYear() + i;
+                        return (
+                          <option key={ano} value={ano}>
+                            {ano}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <div className="text-sm text-gray-600">
+                      Ano atual: <span className="font-semibold">{new Date().getFullYear()}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 Ao abrir as inscrições, o ano selecionado será definido como o ano ativo para novas propostas.
+                  </p>
+                </div>
+              )}
+              
+              {/* Informação do ano ativo quando inscrições estão abertas */}
+              {inscricoesAbertas && (
+                <div className="border-t pt-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-sm text-green-800">
+                      <span className="font-semibold">📅 Ano Ativo:</span> {anoAtivo}
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      Todas as propostas submetidas serão registradas para este ano.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
         </div>

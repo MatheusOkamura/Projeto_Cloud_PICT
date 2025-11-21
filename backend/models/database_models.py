@@ -229,6 +229,7 @@ class ConfiguracaoSistema(Base):
     chave = Column(String, unique=True, nullable=False, index=True)  # Ex: 'inscricoes_abertas'
     valor = Column(String, nullable=False)  # Ex: 'true' ou 'false'
     descricao = Column(Text, nullable=True)
+    ano = Column(Integer, nullable=True)  # Ano específico da configuração (ex: 2025, 2026)
     data_atualizacao = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     atualizado_por = Column(Integer, nullable=True)  # ID do usuário que atualizou
 
