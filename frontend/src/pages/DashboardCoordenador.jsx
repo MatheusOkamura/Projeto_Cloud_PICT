@@ -723,7 +723,7 @@ const DashboardCoordenador = () => {
                   Atualize a etapa/estado dos projetos dos alunos (proposta, relatório parcial, apresentação na amostra, artigo final, finalizado).
                 </p>
                 <p className="text-gray-600 text-sm mt-1">
-                  Também permite agendar as apresentações dos projetos e as apresentações na amostra científica, definindo data, horário, campus e sala.
+                  Também permite  as apresentações dos projetos e as apresentações na amostra científica, definindo data, horário, campus e sala.
                 </p>
               </div>
               <div className="shrink-0">
