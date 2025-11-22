@@ -1,6 +1,6 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Card from '../components/Card';
 import EnviarRelatorioParcial from './EnviarRelatorioParcial';
 import EnviarApresentacaoAmostra from './EnviarApresentacaoAmostra';
@@ -9,6 +9,8 @@ import API_BASE_URL from '../config/api';
 
 const DashboardAluno = () => {
   const { user, updateUser } = useAuth();
+  const userIdRef = useRef(user?.id);
+  const hasFetchedRef = useRef(false);
   const navigate = useNavigate();
   const [inscricao, setInscricao] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +22,11 @@ const DashboardAluno = () => {
   const [entregaRelatorioParcial, setEntregaRelatorioParcial] = useState(null);
   const [inscricoesAbertas, setInscricoesAbertas] = useState(true);
   const [loadingInscricoesStatus, setLoadingInscricoesStatus] = useState(true);
+  const [apresentacaoInfo, setApresentacaoInfo] = useState(null);
+  const [amostraInfo, setAmostraInfo] = useState(null);
+  const [feedbackApresentacao, setFeedbackApresentacao] = useState(null);
+  const [filtroFeedback, setFiltroFeedback] = useState('todos'); // Estado para filtro de feedbacks
+
 
   // Verificar status das inscrições
   useEffect(() => {
@@ -40,6 +47,31 @@ const DashboardAluno = () => {
     verificarStatusInscricoes();
   }, []);
 
+  // Buscar status da entrega do relatório parcial
+  const fetchStatusRelatorioParcial = async () => {
+    if (!user?.id) return;
+    try {
+      console.log('🔍 Buscando status do relatório parcial...');
+      const res = await fetch(`${API_BASE_URL}/alunos/${user.id}/verificar-entrega/relatorio_parcial`);
+      if (res.ok) {
+        try {
+          const text = await res.text();
+          const data = text ? JSON.parse(text) : null;
+          console.log('📦 Dados do relatório parcial:', data);
+          if (data?.ja_enviou && data.entrega) {
+            console.log('✅ Status aprovação orientador:', data.entrega.status_aprovacao_orientador);
+            console.log('✅ Status aprovação coordenador:', data.entrega.status_aprovacao_coordenador);
+            setEntregaRelatorioParcial(data.entrega);
+          }
+        } catch (parseError) {
+          console.error('Erro ao fazer parse da resposta:', parseError);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status do relatório parcial:', error);
+    }
+  };
+
   useEffect(() => {
     // Função para buscar dados atualizados do usuário
     const fetchUserData = async () => {
@@ -57,8 +89,8 @@ const DashboardAluno = () => {
             if (data) {
               console.log('✅ Dados recebidos do backend:', data);
               setUserData(data);
-              // Atualizar também o contexto global
-              updateUser(data);
+              // NÃO atualizar o contexto global aqui para evitar loop infinito
+              // O contexto já tem os dados necessários do login
             }
           } catch (parseError) {
             console.error('❌ Erro ao fazer parse da resposta:', parseError);
@@ -68,27 +100,6 @@ const DashboardAluno = () => {
         }
       } catch (error) {
         console.error('❌ Erro ao buscar dados do usuário:', error);
-      }
-    };
-
-    // Buscar status da entrega do relatório parcial
-    const fetchStatusRelatorioParcial = async () => {
-      if (!user?.id) return;
-      try {
-        const res = await fetch(`${API_BASE_URL}/alunos/${user.id}/verificar-entrega/relatorio_parcial`);
-        if (res.ok) {
-          try {
-            const text = await res.text();
-            const data = text ? JSON.parse(text) : null;
-            if (data?.ja_enviou && data.entrega) {
-              setEntregaRelatorioParcial(data.entrega);
-            }
-          } catch (parseError) {
-            console.error('Erro ao fazer parse da resposta:', parseError);
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao verificar status do relatório parcial:', error);
       }
     };
 
@@ -113,6 +124,49 @@ const DashboardAluno = () => {
           if (etapaRes.ok) {
             const etapaData = await etapaRes.json();
             setEtapaAtual(etapaData.etapa || '');
+            
+            // Buscar informações do projeto (apresentação e amostra)
+            try {
+              const projetoRes = await fetch(`${API_BASE_URL}/projetos/aluno/${user?.id}`);
+              if (projetoRes.ok) {
+                const projetoData = await projetoRes.json();
+                
+                // Buscar informações da apresentação da proposta
+                if (projetoData.apresentacao_data) {
+                  setApresentacaoInfo({
+                    data: projetoData.apresentacao_data,
+                    hora: projetoData.apresentacao_hora,
+                    campus: projetoData.apresentacao_campus,
+                    sala: projetoData.apresentacao_sala
+                  });
+                }
+                
+                // Buscar feedback da apresentação se houver
+                if (projetoData.feedback_apresentacao) {
+                  setFeedbackApresentacao(projetoData.feedback_apresentacao);
+                }
+                
+                // Buscar informações da apresentação na amostra
+                if (projetoData.amostra_data) {
+                  console.log('✅ Dados da amostra encontrados:', {
+                    data: projetoData.amostra_data,
+                    hora: projetoData.amostra_hora,
+                    campus: projetoData.amostra_campus,
+                    sala: projetoData.amostra_sala
+                  });
+                  setAmostraInfo({
+                    data: projetoData.amostra_data,
+                    hora: projetoData.amostra_hora,
+                    campus: projetoData.amostra_campus,
+                    sala: projetoData.amostra_sala
+                  });
+                } else {
+                  console.log('❌ Sem dados de amostra no projeto:', projetoData);
+                }
+              }
+            } catch (error) {
+              console.error('Erro ao buscar informações do projeto:', error);
+            }
           }
         } else {
           setInscricao(null);
@@ -126,12 +180,19 @@ const DashboardAluno = () => {
     };
     
     if (user?.id) {
-      console.log('👤 Usuário atual:', user);
-      fetchUserData();
-      fetchInscricao();
-      fetchStatusRelatorioParcial();
+      // Verificar se já fez fetch ou se o ID mudou
+      if (!hasFetchedRef.current || userIdRef.current !== user.id) {
+        console.log('👤 Usuário atual:', user);
+        userIdRef.current = user.id;
+        hasFetchedRef.current = true;
+        
+        fetchUserData();
+        fetchInscricao();
+        fetchStatusRelatorioParcial();
+      }
     } else {
       setLoading(false);
+      hasFetchedRef.current = false;
     }
   }, [user?.id]); // Removido updateUser das dependências para evitar loop infinito
 
@@ -167,9 +228,10 @@ const DashboardAluno = () => {
   const temProposta = inscricao !== null;
   const semProposta = !temProposta;
   
-  // Verificar se a proposta foi rejeitada (por orientador ou coordenador)
+  // Verificar se a proposta foi rejeitada (por orientador, coordenador ou apresentação)
   const propostaRejeitada = inscricao?.status === 'rejeitada_orientador' || 
                             inscricao?.status === 'rejeitada_coordenador' ||
+                            inscricao?.status === 'rejeitada_apresentacao' ||
                             inscricao?.status_aprovacao_orientador === 'rejeitado' ||
                             inscricao?.status_aprovacao_coordenador === 'rejeitado';
 
@@ -245,6 +307,7 @@ const DashboardAluno = () => {
                     {temProposta ? (
                       propostaRejeitada ? '❌' :
                       inscricao.status === 'aprovada' ? '✅' : 
+                      inscricao.status === 'pendente_apresentacao' ? '🎤' :
                       inscricao.status === 'em_analise' ? '⏳' : '📋'
                     ) : '📝'}
                   </div>
@@ -254,6 +317,7 @@ const DashboardAluno = () => {
                       {temProposta 
                         ? (propostaRejeitada ? 'Rejeitado' :
                            inscricao.status === 'em_analise' ? 'Em Análise' : 
+                           inscricao.status === 'pendente_apresentacao' ? 'Apresentação' :
                            inscricao.status === 'aprovada' ? 'Aprovado' : 'Pendente')
                         : 'Sem Proposta'
                       }
@@ -271,6 +335,76 @@ const DashboardAluno = () => {
                     <div className="flex items-center justify-center py-6">
                       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ibmec-blue-600 mr-3"></div>
                       <p className="text-gray-600">Verificando status das inscrições...</p>
+                    </div>
+                  </Card>
+                ) : inscricao?.status === 'rejeitada_apresentacao' ? (
+                  /* Card profissional para resultado da avaliação da apresentação */
+                  <Card className="mb-8 border-l-4 border-orange-400 bg-white">
+                    <div className="p-6">
+                      <div className="flex items-start gap-3 mb-4">
+                        <div className="flex-shrink-0 w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                          <span className="text-orange-600 text-xl">📋</span>
+                        </div>
+                        <div className="flex-1">
+                          <h2 className="text-xl font-semibold text-gray-800 mb-1">
+                            Resultado da Avaliação da Apresentação
+                          </h2>
+                          <p className="text-gray-600 text-sm">
+                            Sua apresentação foi avaliada pela coordenação do programa.
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <p className="text-sm font-medium text-gray-700">Parecer da Coordenação:</p>
+                        </div>
+                        <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                          {feedbackApresentacao || 'Nenhum parecer foi fornecido.'}
+                        </p>
+                      </div>
+                      
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-start gap-2 mb-3">
+                          <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                          <div className="flex-1">
+                            <p className="text-sm text-blue-800 mb-3">
+                              O período de inscrições para o programa foi encerrado. Para mais informações sobre futuras oportunidades, entre em contato com a coordenação.
+                            </p>
+                            <button
+                              onClick={async () => {
+                                if (window.confirm('Deseja resetar sua inscrição? Isso permitirá que você se inscreva novamente quando as inscrições forem reabertas.')) {
+                                  try {
+                                    const res = await fetch(`${API_BASE_URL}/inscricoes/${inscricao.id}`, {
+                                      method: 'DELETE'
+                                    });
+                                    if (res.ok) {
+                                      alert('Inscrição resetada com sucesso! Você poderá se inscrever novamente quando as inscrições forem reabertas.');
+                                      window.location.reload();
+                                    } else {
+                                      alert('Erro ao resetar inscrição. Tente novamente.');
+                                    }
+                                  } catch (error) {
+                                    console.error('Erro ao resetar inscrição:', error);
+                                    alert('Erro ao resetar inscrição. Tente novamente.');
+                                  }
+                                }
+                              }}
+                              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Resetar Inscrição para Futuras Oportunidades
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </Card>
                 ) : !inscricoesAbertas ? (
@@ -324,112 +458,209 @@ const DashboardAluno = () => {
 
             {/* Status da Inscrição e Entrega de Etapa - Aparece apenas se tiver proposta */}
             {temProposta && (
-              <div className="grid md:grid-cols-2 gap-6 mb-8">
-                <Card>
-                  <h2 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
-                    📋 Status da Inscrição
-                  </h2>
-                  
-                  {/* Timeline 1: Processo de Inscrição */}
-                  <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-gray-600 mb-4">📝 Processo de Inscrição</h3>
-                    <div className="relative">
-                      {/* Linha de fundo cinza */}
-                      <div className="absolute top-5 left-0 w-full h-1 bg-gray-200"></div>
-                      
-                      {/* Linha de progresso verde */}
-                      <div 
-                        className="absolute top-5 left-0 h-1 bg-green-500 transition-all duration-500"
-                        style={{
-                          width: 
-                            inscricao.status === 'aprovada' ? '100%' :
-                            inscricao.status_aprovacao_coordenador === 'aprovado' ? '75%' :
-                            inscricao.status_aprovacao_orientador === 'aprovado' ? '50%' :
-                            temProposta ? '25%' : '0%'
-                        }}
-                      ></div>
-                      
-                      {/* Etapas da Inscrição */}
-                      <div className="relative flex justify-between">
-                        {/* 1. Proposta Enviada */}
-                        <div className="flex flex-col items-center z-10">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            temProposta
-                              ? 'bg-green-500 text-white' 
-                              : 'bg-gray-300 text-gray-600'
-                          }`}>
-                            {temProposta ? '✓' : '1'}
+              <>
+                {/* Card de Apresentação Agendada - Aparece quando na etapa apresentacao_proposta E tem dados agendados, mas NÃO se já foi avaliada */}
+                {etapaAtual === 'apresentacao_proposta' && apresentacaoInfo && 
+                 inscricao?.status !== 'aprovada' && inscricao?.status !== 'rejeitada_apresentacao' && (
+                  <Card className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300">
+                    <div className="flex items-center gap-4">
+                      <div className="text-6xl">🎤</div>
+                      <div className="flex-1">
+                        <h2 className="text-2xl font-bold text-green-800 mb-2">
+                          ✅ Apresentação Agendada!
+                        </h2>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="bg-white p-3 rounded-lg shadow-sm">
+                            <p className="text-xs text-gray-600 font-semibold mb-1">📅 DATA</p>
+                            <p className="text-lg font-bold text-green-800">
+                              {new Date(apresentacaoInfo.data + 'T00:00:00').toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: 'long',
+                                year: 'numeric'
+                              })}
+                            </p>
                           </div>
-                          <p className="text-xs mt-2 text-center font-medium w-20">Proposta Enviada</p>
-                        </div>
-
-                        {/* 2. Aprovação Orientador */}
-                        <div className="flex flex-col items-center z-10">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            inscricao.status_aprovacao_orientador === 'aprovado'
-                              ? 'bg-green-500 text-white' 
-                              : inscricao.status_aprovacao_orientador === 'rejeitado'
-                              ? 'bg-red-500 text-white'
-                              : inscricao.status_aprovacao_orientador === 'pendente' && temProposta
-                              ? 'bg-yellow-500 text-white animate-pulse'
-                              : 'bg-gray-300 text-gray-600'
-                          }`}>
-                            {inscricao.status_aprovacao_orientador === 'aprovado' ? '✓' : 
-                             inscricao.status_aprovacao_orientador === 'rejeitado' ? '✗' : '2'}
+                          <div className="bg-white p-3 rounded-lg shadow-sm">
+                            <p className="text-xs text-gray-600 font-semibold mb-1">🕐 HORÁRIO</p>
+                            <p className="text-lg font-bold text-green-800">{apresentacaoInfo.hora}</p>
                           </div>
-                          <p className="text-xs mt-2 text-center font-medium w-24">Aprovação Orientador</p>
-                        </div>
-
-                        {/* 3. Aprovação Coordenador */}
-                        <div className="flex flex-col items-center z-10">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            inscricao.status_aprovacao_coordenador === 'aprovado' || inscricao.status === 'aprovada'
-                              ? 'bg-green-500 text-white' 
-                              : inscricao.status_aprovacao_coordenador === 'rejeitado'
-                              ? 'bg-red-500 text-white'
-                              : inscricao.status_aprovacao_coordenador === 'pendente' && inscricao.status_aprovacao_orientador === 'aprovado'
-                              ? 'bg-yellow-500 text-white animate-pulse'
-                              : 'bg-gray-300 text-gray-600'
-                          }`}>
-                            {inscricao.status_aprovacao_coordenador === 'aprovado' || inscricao.status === 'aprovada' ? '✓' : 
-                             inscricao.status_aprovacao_coordenador === 'rejeitado' ? '✗' : '3'}
+                          <div className="bg-white p-3 rounded-lg shadow-sm">
+                            <p className="text-xs text-gray-600 font-semibold mb-1">🏫 CAMPUS</p>
+                            <p className="text-lg font-bold text-green-800">{apresentacaoInfo.campus}</p>
                           </div>
-                          <p className="text-xs mt-2 text-center font-medium w-24">Aprovação Coordenador</p>
+                          {apresentacaoInfo.sala && (
+                            <div className="bg-white p-3 rounded-lg shadow-sm">
+                              <p className="text-xs text-gray-600 font-semibold mb-1">🚪 SALA</p>
+                              <p className="text-lg font-bold text-green-800">{apresentacaoInfo.sala}</p>
+                            </div>
+                          )}
                         </div>
-
-                        {/* 4. Apresentação Realizada */}
-                        <div className="flex flex-col items-center z-10">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            inscricao.status === 'aprovada'
-                              ? 'bg-green-500 text-white' 
-                              : 'bg-gray-300 text-gray-600'
-                          }`}>
-                            {inscricao.status === 'aprovada' ? '✓' : '4'}
-                          </div>
-                          <p className="text-xs mt-2 text-center font-medium w-24">Apresentação Realizada</p>
-                        </div>
+                        <p className="text-sm text-green-700 mt-3 font-medium">
+                          💡 Prepare sua apresentação com antecedência e esteja no local no horário indicado.
+                        </p>
                       </div>
                     </div>
+                  </Card>
+                )}
 
-                    {/* Legenda da etapa atual de inscrição */}
-                    {!inscricao.status || inscricao.status !== 'aprovada' ? (
+                {/* Card de Apresentação na Amostra Agendada - Aparece independente da etapa quando há dados agendados */}
+                {console.log('🔍 Verificando card amostra:', { temProposta, amostraInfo })}
+                {temProposta && amostraInfo && (
+                  <Card className="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300">
+                    <div className="flex items-center gap-4">
+                      <div className="text-6xl">🎨</div>
+                      <div className="flex-1">
+                        <h2 className="text-2xl font-bold text-purple-800 mb-2">
+                          ✅ Apresentação na Amostra Agendada!
+                        </h2>
+                        <p className="text-sm text-purple-700 mb-3">
+                          Sua apresentação na mostra científica foi agendada pelo coordenador.
+                        </p>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="bg-white p-3 rounded-lg shadow-sm">
+                            <p className="text-xs text-gray-600 font-semibold mb-1">📅 DATA</p>
+                            <p className="text-lg font-bold text-purple-800">
+                              {new Date(amostraInfo.data + 'T00:00:00').toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: 'long',
+                                year: 'numeric'
+                              })}
+                            </p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg shadow-sm">
+                            <p className="text-xs text-gray-600 font-semibold mb-1">🕐 HORÁRIO</p>
+                            <p className="text-lg font-bold text-purple-800">{amostraInfo.hora}</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg shadow-sm">
+                            <p className="text-xs text-gray-600 font-semibold mb-1">🏫 CAMPUS</p>
+                            <p className="text-lg font-bold text-purple-800">{amostraInfo.campus}</p>
+                          </div>
+                          {amostraInfo.sala && (
+                            <div className="bg-white p-3 rounded-lg shadow-sm">
+                              <p className="text-xs text-gray-600 font-semibold mb-1">🚪 SALA</p>
+                              <p className="text-lg font-bold text-purple-800">{amostraInfo.sala}</p>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-sm text-purple-700 mt-3 font-medium">
+                          💡 Prepare seu material de apresentação e esteja no local no horário indicado para a mostra científica.
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-6 mb-8">
+                  <Card>
+                    <h2 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
+                      {inscricao.status === 'aprovada' ? '📋 Status da Iniciação Científica' : '📋 Status da Inscrição'}
+                    </h2>
+                  
+                    {/* Timeline 1: Processo de Inscrição (só aparece se ainda não foi aprovado OU se está na etapa de apresentação) */}
+                    {(inscricao.status !== 'aprovada' || !etapaAtual || etapaAtual === 'apresentacao_proposta') && (
+                      <div className="mb-6">
+                      <h3 className="text-sm font-semibold text-gray-600 mb-4">📝 Processo de Inscrição</h3>
+                      <div className="relative">
+                        {/* Linha de fundo cinza */}
+                        <div className="absolute top-5 left-0 w-full h-1 bg-gray-200"></div>
+                        
+                        {/* Linha de progresso verde */}
+                        <div 
+                          className="absolute top-5 left-0 h-1 bg-green-500 transition-all duration-500"
+                          style={{
+                            width: 
+                              inscricao.status === 'aprovada' ? '100%' :
+                              inscricao.status === 'pendente_apresentacao' ? '75%' :
+                              inscricao.status_aprovacao_coordenador === 'pendente' && inscricao.status_aprovacao_orientador === 'aprovado' ? '66%' :
+                              inscricao.status_aprovacao_orientador === 'aprovado' ? '66%' :
+                              inscricao.status_aprovacao_orientador === 'pendente' && temProposta ? '33%' :
+                              temProposta ? '25%' : '0%'
+                          }}
+                        ></div>
+                        
+                        {/* Etapas da Inscrição */}
+                        <div className="relative flex justify-between">
+                          {/* 1. Proposta Enviada */}
+                          <div className="flex flex-col items-center z-10">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              temProposta
+                                ? 'bg-green-500 text-white' 
+                                : 'bg-gray-300 text-gray-600'
+                            }`}>
+                              {temProposta ? '✓' : '1'}
+                            </div>
+                            <p className="text-xs mt-2 text-center font-medium w-20">Proposta Enviada</p>
+                          </div>
+
+                          {/* 2. Aprovação Orientador */}
+                          <div className="flex flex-col items-center z-10">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              inscricao.status_aprovacao_orientador === 'aprovado'
+                                ? 'bg-green-500 text-white' 
+                                : inscricao.status_aprovacao_orientador === 'rejeitado'
+                                ? 'bg-red-500 text-white'
+                                : inscricao.status_aprovacao_orientador === 'pendente' && temProposta
+                                ? 'bg-yellow-500 text-white animate-pulse'
+                                : 'bg-gray-300 text-gray-600'
+                            }`}>
+                              {inscricao.status_aprovacao_orientador === 'aprovado' ? '✓' : 
+                               inscricao.status_aprovacao_orientador === 'rejeitado' ? '✗' : '2'}
+                            </div>
+                            <p className="text-xs mt-2 text-center font-medium w-24">Aprovação Orientador</p>
+                          </div>
+
+                          {/* 3. Aprovação Coordenador */}
+                          <div className="flex flex-col items-center z-10">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              inscricao.status_aprovacao_coordenador === 'aprovado' || inscricao.status === 'pendente_apresentacao' || inscricao.status === 'aprovada'
+                                ? 'bg-green-500 text-white' 
+                                : inscricao.status_aprovacao_coordenador === 'rejeitado'
+                                ? 'bg-red-500 text-white'
+                                : inscricao.status_aprovacao_coordenador === 'pendente' && inscricao.status_aprovacao_orientador === 'aprovado'
+                                ? 'bg-yellow-500 text-white animate-pulse'
+                                : 'bg-gray-300 text-gray-600'
+                            }`}>
+                              {inscricao.status_aprovacao_coordenador === 'aprovado' || inscricao.status === 'pendente_apresentacao' || inscricao.status === 'aprovada' ? '✓' : 
+                               inscricao.status_aprovacao_coordenador === 'rejeitado' ? '✗' : '3'}
+                            </div>
+                            <p className="text-xs mt-2 text-center font-medium w-24">Aprovação Coordenador</p>
+                          </div>
+
+                          {/* 4. Apresentação */}
+                          <div className="flex flex-col items-center z-10">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              inscricao.status === 'aprovada'
+                                ? 'bg-green-500 text-white' 
+                                : inscricao.status === 'pendente_apresentacao'
+                                ? 'bg-yellow-500 text-white animate-pulse'
+                                : 'bg-gray-300 text-gray-600'
+                            }`}>
+                              {inscricao.status === 'aprovada' ? '✓' : '4'}
+                            </div>
+                            <p className="text-xs mt-2 text-center font-medium w-24">Apresentação</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Legenda da etapa atual de inscrição */}
                       <div className="mt-4 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
                         <p className="text-sm font-semibold text-blue-800">
                           📍 Status: {
                             inscricao.status_aprovacao_coordenador === 'rejeitado' ? 'Proposta rejeitada pelo coordenador' :
                             inscricao.status_aprovacao_orientador === 'rejeitado' ? 'Proposta rejeitada pelo orientador' :
+                            inscricao.status === 'pendente_apresentacao' ? 'Aguardando apresentação e avaliação final' :
                             inscricao.status_aprovacao_coordenador === 'pendente' && inscricao.status_aprovacao_orientador === 'aprovado' ? 'Aguardando aprovação do coordenador' :
                             inscricao.status_aprovacao_orientador === 'pendente' ? 'Aguardando aprovação do orientador' :
                             temProposta ? 'Proposta em análise' : 'Aguardando envio da proposta'
                           }
                         </p>
                       </div>
-                    ) : null}
-                  </div>
+                      </div>
+                    )}
 
-                  {/* Timeline 2: Progresso da Iniciação Científica (só aparece se aprovado) */}
-                  {inscricao.status === 'aprovada' && (
-                    <div className="mb-6">
+                    {/* Timeline 2: Progresso da Iniciação Científica (só aparece após a apresentação) */}
+                    {inscricao.status === 'aprovada' && etapaAtual && etapaAtual !== 'apresentacao_proposta' && (
+                      <div className="mb-6">
                       <h3 className="text-sm font-semibold text-gray-600 mb-4">🚀 Progresso da Iniciação Científica</h3>
                       <div className="relative">
                         {/* Linha de fundo cinza */}
@@ -446,7 +677,7 @@ const DashboardAluno = () => {
                               etapaAtual === 'relatorio_parcial' ? '25%' : '0%'
                           }}
                         ></div>
-                        
+
                         {/* Etapas do Progresso */}
                         <div className="relative flex justify-between">
                           {/* 1. Relatório Parcial */}
@@ -456,6 +687,8 @@ const DashboardAluno = () => {
                                 ? 'bg-red-500 text-white' 
                                 : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado'
                                 ? 'bg-red-500 text-white'
+                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
+                                ? 'bg-green-500 text-white'
                                 : etapaAtual === 'relatorio_parcial'
                                 ? 'bg-blue-500 text-white animate-pulse' 
                                 : etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final' || etapaAtual === 'concluido'
@@ -466,6 +699,8 @@ const DashboardAluno = () => {
                                 ? '✗'
                                 : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado'
                                 ? '✗'
+                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
+                                ? '✓'
                                 : etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final' || etapaAtual === 'concluido' 
                                 ? '✓' 
                                 : '1'}
@@ -474,6 +709,8 @@ const DashboardAluno = () => {
                               entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' || 
                               (entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado')
                                 ? 'text-red-500'
+                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
+                                ? 'text-green-600 font-semibold'
                                 : ''
                             }`}>
                               Relatório Parcial
@@ -482,6 +719,9 @@ const DashboardAluno = () => {
                               )}
                               {entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado' && (
                                 <span className="block text-red-500 text-xs">Recusado pelo coordenador</span>
+                              )}
+                              {entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado' && (
+                                <span className="block text-green-600 text-xs">✓ Aprovado</span>
                               )}
                             </p>
                           </div>
@@ -528,13 +768,183 @@ const DashboardAluno = () => {
                         </div>
                       </div>
 
+                      {/* Timeline 3: Relatórios Mensais para Orientador */}
+                      <div className="mt-8">
+                        <h4 className="text-xs font-semibold text-gray-500 mb-3">📅 Relatórios Mensais ao Orientador</h4>
+                        <div className="relative">
+                          {/* Linha de fundo cinza */}
+                          <div className="absolute top-3 left-0 w-full h-0.5 bg-gray-200"></div>
+                          
+                          {/* Linha de progresso dos relatórios mensais */}
+                          <div 
+                            className="absolute top-3 left-0 h-0.5 bg-purple-500 transition-all duration-500"
+                            style={{ width: '0%' }}
+                          ></div>
+                          
+                          {/* 5 Relatórios Mensais */}
+                          <div className="relative flex justify-between px-2">
+                            {[1, 2, 3, 4, 5].map((num) => {
+                              // Verificar se está na etapa do relatório mensal correspondente
+                              const isEtapaAtual = etapaAtual === `relatorio_mensal_${num}`;
+                              
+                              // Mapear número sequencial para mês (1=março=3, 2=abril=4, 3=maio=5, 4=junho=6, 5=setembro=9)
+                              const mesesMap = { 1: 3, 2: 4, 3: 5, 4: 6, 5: 9 };
+                              const mesEsperado = mesesMap[num];
+                              
+                              // Verificar se o relatório foi enviado
+                              const relatorioEnviado = relatoriosMensais.some(rel => rel.mes_numero === mesEsperado);
+                              
+                              // Extrair número da etapa atual (ex: relatorio_mensal_2 -> 2)
+                              const etapaAtualNum = etapaAtual?.startsWith('relatorio_mensal_') 
+                                ? parseInt(etapaAtual.split('_').pop()) 
+                                : 0;
+                              
+                              // Se a etapa atual passou deste relatório e não foi enviado, está atrasado
+                              const estaAtrasado = etapaAtualNum > num && !relatorioEnviado;
+                              
+                              return (
+                                <div key={num} className="flex flex-col items-center z-10">
+                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                                    relatorioEnviado
+                                      ? 'bg-green-500 text-white shadow-lg' 
+                                      : estaAtrasado
+                                        ? 'bg-red-500 text-white shadow-lg'
+                                        : isEtapaAtual 
+                                          ? 'bg-yellow-400 text-yellow-900 shadow-lg animate-pulse' 
+                                          : 'bg-gray-300 text-gray-600'
+                                  }`}>
+                                    {relatorioEnviado ? '✓' : estaAtrasado ? '✕' : num}
+                                  </div>
+                                  <p className="text-[10px] mt-1 text-center font-medium text-gray-600 w-12">
+                                    Mês {num}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        
+                        {/* Alerta para relatórios atrasados */}
+                        {(() => {
+                          const mesesMap = { 1: 3, 2: 4, 3: 5, 4: 6, 5: 9 };
+                          const etapaAtualNum = etapaAtual?.startsWith('relatorio_mensal_') 
+                            ? parseInt(etapaAtual.split('_').pop()) 
+                            : 0;
+                          
+                          const relatoriosAtrasados = [1, 2, 3, 4, 5].filter(num => {
+                            const mesEsperado = mesesMap[num];
+                            const relatorioEnviado = relatoriosMensais.some(rel => rel.mes_numero === mesEsperado);
+                            return etapaAtualNum > num && !relatorioEnviado;
+                          });
+                          
+                          if (relatoriosAtrasados.length > 0) {
+                            return (
+                              <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p className="text-sm font-bold text-red-800 mb-2">
+                                  ⚠️ Relatório{relatoriosAtrasados.length > 1 ? 's' : ''} Mensal{relatoriosAtrasados.length > 1 ? 'is' : ''} Não Enviado{relatoriosAtrasados.length > 1 ? 's' : ''}
+                                </p>
+                                <p className="text-sm text-red-700 mb-2">
+                                  O{relatoriosAtrasados.length > 1 ? 's' : ''} seguinte{relatoriosAtrasados.length > 1 ? 's' : ''} relatório{relatoriosAtrasados.length > 1 ? 's' : ''} não foi{relatoriosAtrasados.length > 1 ? 'ram' : ''} enviado{relatoriosAtrasados.length > 1 ? 's' : ''} pelo seu orientador no prazo: 
+                                  <span className="font-semibold"> Mês {relatoriosAtrasados.join(', ')}</span>
+                                </p>
+                                <p className="text-xs text-red-600">
+                                  📞 Prazo de entrega finalizado. Entre em contato com o coordenador para solicitar o reenvio.
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+
                       {/* Legenda da etapa atual do progresso */}
-                      {etapaAtual && etapaAtual !== 'concluido' && (
+                      {(!etapaAtual || etapaAtual === 'apresentacao_proposta') && (
+                        <div className="mt-4">
+                          {apresentacaoInfo ? (
+                            <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                              <p className="text-sm font-bold text-green-800 mb-3">
+                                ✅ Apresentação Agendada!
+                              </p>
+                              <div className="space-y-2 text-sm text-green-700">
+                                <p className="flex items-center">
+                                  <span className="font-semibold mr-2">📅 Data:</span>
+                                  {new Date(apresentacaoInfo.data + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                </p>
+                                <p className="flex items-center">
+                                  <span className="font-semibold mr-2">🕐 Horário:</span>
+                                  {apresentacaoInfo.hora}
+                                </p>
+                                <p className="flex items-center">
+                                  <span className="font-semibold mr-2">🏫 Campus:</span>
+                                  {apresentacaoInfo.campus}
+                                </p>
+                                {apresentacaoInfo.sala && (
+                                  <p className="flex items-center">
+                                    <span className="font-semibold mr-2">🚪 Sala:</span>
+                                    {apresentacaoInfo.sala}
+                                  </p>
+                                )}
+                              </div>
+                              <p className="text-xs text-green-600 mt-3">
+                                Prepare sua apresentação e esteja no local no horário indicado.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="bg-yellow-50 p-3 rounded-lg border-l-4 border-yellow-500">
+                              <p className="text-sm font-semibold text-yellow-800">
+                                ⏳ Aguardando Agendamento - O coordenador agendará a data da sua apresentação em breve
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {etapaAtual === 'apresentacao_amostra' && (
+                        <div className="mt-4">
+                          {amostraInfo ? (
+                            <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-500">
+                              <p className="text-sm font-bold text-purple-800 mb-3">
+                                ✅ Apresentação na Amostra Agendada!
+                              </p>
+                              <div className="space-y-2 text-sm text-purple-700">
+                                <p className="flex items-center">
+                                  <span className="font-semibold mr-2">📅 Data:</span>
+                                  {new Date(amostraInfo.data + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                </p>
+                                <p className="flex items-center">
+                                  <span className="font-semibold mr-2">🕐 Horário:</span>
+                                  {amostraInfo.hora}
+                                </p>
+                                <p className="flex items-center">
+                                  <span className="font-semibold mr-2">🏫 Campus:</span>
+                                  {amostraInfo.campus}
+                                </p>
+                                {amostraInfo.sala && (
+                                  <p className="flex items-center">
+                                    <span className="font-semibold mr-2">🚪 Sala:</span>
+                                    {amostraInfo.sala}
+                                  </p>
+                                )}
+                              </div>
+                              <p className="text-xs text-purple-600 mt-3">
+                                Prepare seu material de apresentação para a mostra científica.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="bg-yellow-50 p-3 rounded-lg border-l-4 border-yellow-500">
+                              <p className="text-sm font-semibold text-yellow-800">
+                                ⏳ Aguardando Agendamento - O coordenador agendará a data da sua apresentação na amostra em breve
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {etapaAtual && etapaAtual !== 'concluido' && etapaAtual !== 'apresentacao_proposta' && etapaAtual !== 'apresentacao_amostra' && (
                         <div className="mt-4 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
                           <p className="text-sm font-semibold text-blue-800">
                             📍 Etapa Atual: {
                               etapaAtual === 'relatorio_parcial' ? 'Envio do Relatório Parcial' :
-                              etapaAtual === 'apresentacao_amostra' ? 'Apresentação na Amostra' :
                               etapaAtual === 'artigo_final' ? 'Envio do Artigo Final' :
                               'Aguardando início das etapas'
                             }
@@ -549,58 +959,204 @@ const DashboardAluno = () => {
                           </p>
                         </div>
                       )}
-                    </div>
-                  )}
+                      </div>
+                    )}
 
-                  <div className={`px-4 py-3 rounded-lg border-2 mb-6 ${
-                    propostaRejeitada 
-                      ? 'bg-red-100 text-red-800 border-red-300'
-                      : getStatusColor(inscricao.status)
-                  }`}>
-                    <p className="font-bold text-lg">
-                      {propostaRejeitada ? '❌ Rejeitado' : getStatusText(inscricao.status)}
-                    </p>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-gray-600">Data de Submissão</p>
-                      <p className="font-semibold text-gray-800">
-                        {new Date(inscricao.data_submissao).toLocaleDateString('pt-BR')}
+                    <div className={`px-4 py-3 rounded-lg border-2 mb-6 ${
+                      propostaRejeitada 
+                        ? 'bg-red-100 text-red-800 border-red-300'
+                        : getStatusColor(inscricao.status)
+                    }`}>
+                      <p className="font-bold text-lg">
+                        {propostaRejeitada ? '❌ Rejeitado' : getStatusText(inscricao.status)}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Título do Projeto</p>
-                      <p className="font-semibold text-gray-800">{inscricao.titulo_projeto}</p>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Data de Submissão</p>
+                        <p className="font-semibold text-gray-800">
+                          {new Date(inscricao.data_submissao).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Título do Projeto</p>
+                        <p className="font-semibold text-gray-800">{inscricao.titulo_projeto}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Área de Conhecimento</p>
+                        <p className="font-semibold text-gray-800">{inscricao.area_conhecimento}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Orientador</p>
+                        <p className="font-semibold text-gray-800">
+                          {inscricao.orientador_id ? 'Atribuído' : 'Aguardando atribuição'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Área de Conhecimento</p>
-                      <p className="font-semibold text-gray-800">{inscricao.area_conhecimento}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Orientador</p>
-                      <p className="font-semibold text-gray-800">
-                        {inscricao.orientador_id ? 'Atribuído' : 'Aguardando atribuição'}
-                      </p>
-                    </div>
-                  </div>
-                  {/* Entrega de etapa conforme etapaAtual */}
-                  {etapaAtual === 'relatorio_parcial' && (
-                    <div className="mt-8">
-                      <EnviarRelatorioParcial />
-                    </div>
-                  )}
-                  {etapaAtual === 'apresentacao_amostra' && (
-                    <div className="mt-8">
-                      <EnviarApresentacaoAmostra />
-                    </div>
-                  )}
-                  {etapaAtual === 'artigo_final' && (
-                    <div className="mt-8">
-                      <EnviarArtigoFinal />
-                    </div>
-                  )}
-                </Card>
-                <Card>
+                    {/* Entrega de etapa conforme etapaAtual */}
+                    {etapaAtual === 'relatorio_parcial' && (
+                      <div className="mt-8">
+                        <EnviarRelatorioParcial />
+                        
+                        {/* Status de Aprovação do Relatório Parcial */}
+                        {entregaRelatorioParcial && (
+                          <div className="mt-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-lg font-bold text-ibmec-blue-800">📋 Status da Avaliação</h3>
+                              <button
+                                onClick={fetchStatusRelatorioParcial}
+                                className="text-sm bg-ibmec-blue-600 hover:bg-ibmec-blue-700 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-2"
+                              >
+                                🔄 Atualizar Status
+                              </button>
+                            </div>
+                            
+                            {/* Status Orientador */}
+                            <div className={`p-4 rounded-lg border-2 ${
+                              entregaRelatorioParcial.status_aprovacao_orientador === 'aprovado' 
+                                ? 'bg-green-50 border-green-500' 
+                                : entregaRelatorioParcial.status_aprovacao_orientador === 'rejeitado'
+                                ? 'bg-red-50 border-red-500'
+                                : 'bg-yellow-50 border-yellow-500'
+                            }`}>
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className="text-2xl">
+                                  {entregaRelatorioParcial.status_aprovacao_orientador === 'aprovado' ? '✅' :
+                                   entregaRelatorioParcial.status_aprovacao_orientador === 'rejeitado' ? '❌' : '⏳'}
+                                </span>
+                                <div>
+                                  <p className="font-bold text-sm">Avaliação do Orientador</p>
+                                  <p className={`text-xs font-semibold ${
+                                    entregaRelatorioParcial.status_aprovacao_orientador === 'aprovado' 
+                                      ? 'text-green-800' 
+                                      : entregaRelatorioParcial.status_aprovacao_orientador === 'rejeitado'
+                                      ? 'text-red-800'
+                                      : 'text-yellow-800'
+                                  }`}>
+                                    {entregaRelatorioParcial.status_aprovacao_orientador === 'aprovado' ? 'Aprovado' :
+                                     entregaRelatorioParcial.status_aprovacao_orientador === 'rejeitado' ? 'Rejeitado' : 'Aguardando Avaliação'}
+                                  </p>
+                                </div>
+                              </div>
+                              {entregaRelatorioParcial.feedback_orientador && (
+                                <p className="text-sm text-gray-700 mt-2 italic">
+                                  "{entregaRelatorioParcial.feedback_orientador}"
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Status Coordenador - Só mostra se orientador aprovou */}
+                            {entregaRelatorioParcial.status_aprovacao_orientador === 'aprovado' && (
+                              <div className={`p-4 rounded-lg border-2 ${
+                                entregaRelatorioParcial.status_aprovacao_coordenador === 'aprovado' 
+                                  ? 'bg-green-50 border-green-500' 
+                                  : entregaRelatorioParcial.status_aprovacao_coordenador === 'rejeitado'
+                                  ? 'bg-red-50 border-red-500'
+                                  : 'bg-yellow-50 border-yellow-500'
+                              }`}>
+                                <div className="flex items-center gap-3 mb-2">
+                                  <span className="text-2xl">
+                                    {entregaRelatorioParcial.status_aprovacao_coordenador === 'aprovado' ? '✅' :
+                                     entregaRelatorioParcial.status_aprovacao_coordenador === 'rejeitado' ? '❌' : '⏳'}
+                                  </span>
+                                  <div>
+                                    <p className="font-bold text-sm">Avaliação do Coordenador</p>
+                                    <p className={`text-xs font-semibold ${
+                                      entregaRelatorioParcial.status_aprovacao_coordenador === 'aprovado' 
+                                        ? 'text-green-800' 
+                                        : entregaRelatorioParcial.status_aprovacao_coordenador === 'rejeitado'
+                                        ? 'text-red-800'
+                                        : 'text-yellow-800'
+                                    }`}>
+                                      {entregaRelatorioParcial.status_aprovacao_coordenador === 'aprovado' ? 'Aprovado' :
+                                       entregaRelatorioParcial.status_aprovacao_coordenador === 'rejeitado' ? 'Rejeitado' : 'Aguardando Avaliação'}
+                                    </p>
+                                  </div>
+                                </div>
+                                {entregaRelatorioParcial.feedback_coordenador && (
+                                  <p className="text-sm text-gray-700 mt-2 italic">
+                                    "{entregaRelatorioParcial.feedback_coordenador}"
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Mensagem de sucesso se ambos aprovaram */}
+                            {entregaRelatorioParcial.status_aprovacao_orientador === 'aprovado' && 
+                             entregaRelatorioParcial.status_aprovacao_coordenador === 'aprovado' && (
+                              <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white p-4 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-3xl">🎉</span>
+                                  <div>
+                                    <p className="font-bold text-lg">Parabéns!</p>
+                                    <p className="text-sm">Seu relatório parcial foi aprovado pelo orientador e coordenador!</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {etapaAtual === 'apresentacao_amostra' && (
+                      <>
+                        {amostraInfo && (
+                          <div className="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-6">
+                            <div className="flex items-center gap-4 mb-4">
+                              <div className="text-5xl">🎨</div>
+                              <div className="flex-1">
+                                <h3 className="text-2xl font-bold text-purple-800 mb-1">
+                                  ✅ Apresentação na Amostra Agendada!
+                                </h3>
+                                <p className="text-sm text-purple-700">
+                                  Sua apresentação na mostra científica foi agendada pelo coordenador.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                              <div className="bg-white p-3 rounded-lg shadow-sm">
+                                <p className="text-xs text-gray-600 font-semibold mb-1">📅 DATA</p>
+                                <p className="text-lg font-bold text-purple-800">
+                                  {new Date(amostraInfo.data + 'T00:00:00').toLocaleDateString('pt-BR', {
+                                    day: '2-digit',
+                                    month: 'long',
+                                    year: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+                              <div className="bg-white p-3 rounded-lg shadow-sm">
+                                <p className="text-xs text-gray-600 font-semibold mb-1">🕐 HORÁRIO</p>
+                                <p className="text-lg font-bold text-purple-800">{amostraInfo.hora}</p>
+                              </div>
+                              <div className="bg-white p-3 rounded-lg shadow-sm">
+                                <p className="text-xs text-gray-600 font-semibold mb-1">🏫 CAMPUS</p>
+                                <p className="text-lg font-bold text-purple-800">{amostraInfo.campus}</p>
+                              </div>
+                              {amostraInfo.sala && (
+                                <div className="bg-white p-3 rounded-lg shadow-sm">
+                                  <p className="text-xs text-gray-600 font-semibold mb-1">🚪 SALA</p>
+                                  <p className="text-lg font-bold text-purple-800">{amostraInfo.sala}</p>
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-sm text-purple-700 mt-3 font-medium">
+                              💡 Prepare seu material de apresentação e esteja no local no horário indicado para a mostra científica.
+                            </p>
+                          </div>
+                        )}
+                        <div className="mt-8">
+                          <EnviarApresentacaoAmostra />
+                        </div>
+                      </>
+                    )}
+                    {etapaAtual === 'artigo_final' && (
+                      <div className="mt-8">
+                        <EnviarArtigoFinal />
+                      </div>
+                    )}
+                  </Card>
+
+                  <Card>
                   <h2 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
                     👤 Meus Dados
                   </h2>
@@ -870,119 +1426,187 @@ const DashboardAluno = () => {
                   )}
                     </div>
                   </div>
-                </Card>
-              </div>
+                  </Card>
+                </div>
+              </>
             )}
 
             {/* Mensagens/Feedbacks - Aparece apenas se tiver proposta */}
             {temProposta && (
               <Card>
-                <h2 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
-                  💬 Mensagens e Feedbacks
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-ibmec-blue-800">
+                    💬 Mensagens e Feedbacks
+                  </h2>
+                  
+                  {/* Filtro por etapa */}
+                  <select
+                    value={filtroFeedback}
+                    onChange={(e) => setFiltroFeedback(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ibmec-blue-500 focus:border-ibmec-blue-500"
+                  >
+                    <option value="todos">Todos os Feedbacks</option>
+                    <option value="proposta">Proposta Inicial</option>
+                    <option value="apresentacao">Apresentação</option>
+                    <option value="relatorio_parcial">Relatório Parcial</option>
+                  </select>
+                </div>
                 
-                {(!inscricao.feedback_orientador && !inscricao.feedback_coordenador) ? (
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4">📭</div>
-                    <p className="text-gray-500">Nenhuma mensagem no momento</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Feedback do Orientador */}
-                    {inscricao.feedback_orientador && (
-                      <div className={`p-4 rounded-lg border-l-4 ${
-                        inscricao.status_aprovacao_orientador === 'rejeitado' 
-                          ? 'bg-red-50 border-red-500' 
-                          : 'bg-green-50 border-green-500'
-                      }`}>
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xl">
-                              {inscricao.status_aprovacao_orientador === 'rejeitado' ? '❌' : '✅'}
-                            </span>
-                            <div>
-                              <p className={`font-bold ${
-                                inscricao.status_aprovacao_orientador === 'rejeitado' 
-                                  ? 'text-red-800' 
-                                  : 'text-green-800'
-                              }`}>
-                                {inscricao.status_aprovacao_orientador === 'rejeitado' 
-                                  ? 'Rejeitado pelo Orientador' 
-                                  : 'Avaliação do Orientador'
-                                }
-                              </p>
-                              {inscricao.data_avaliacao_orientador && (
-                                <p className="text-sm text-gray-600">
-                                  {new Date(inscricao.data_avaliacao_orientador).toLocaleString('pt-BR', {
-                                    day: '2-digit',
-                                    month: '2-digit',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
+                {(() => {
+                  // Organizar feedbacks por categoria
+                  const feedbacks = [];
+                  
+                  // Feedback do Orientador (Proposta Inicial)
+                  if (inscricao.feedback_orientador && (filtroFeedback === 'todos' || filtroFeedback === 'proposta')) {
+                    feedbacks.push({
+                      tipo: 'proposta',
+                      categoria: 'Proposta Inicial',
+                      autor: 'Orientador',
+                      status: inscricao.status_aprovacao_orientador,
+                      feedback: inscricao.feedback_orientador,
+                      data: inscricao.data_avaliacao_orientador
+                    });
+                  }
+                  
+                  // Feedback do Coordenador - verificar se é da proposta inicial ou da apresentação
+                  if (inscricao.feedback_coordenador) {
+                    // Se o status é rejeitada_apresentacao ou aprovada, o feedback é da apresentação
+                    if ((inscricao.status === 'rejeitada_apresentacao' || inscricao.status === 'aprovada') && (filtroFeedback === 'todos' || filtroFeedback === 'apresentacao')) {
+                      feedbacks.push({
+                        tipo: 'apresentacao',
+                        categoria: 'Apresentação',
+                        autor: 'Coordenador',
+                        status: inscricao.status === 'rejeitada_apresentacao' ? 'rejeitado' : 'aprovado',
+                        feedback: inscricao.feedback_coordenador,
+                        data: inscricao.data_avaliacao_coordenador
+                      });
+                    }
+                    // Senão, é da proposta inicial
+                    else if (inscricao.status !== 'rejeitada_apresentacao' && inscricao.status !== 'aprovada' && (filtroFeedback === 'todos' || filtroFeedback === 'proposta')) {
+                      feedbacks.push({
+                        tipo: 'proposta',
+                        categoria: 'Proposta Inicial',
+                        autor: 'Coordenador',
+                        status: inscricao.status_aprovacao_coordenador,
+                        feedback: inscricao.feedback_coordenador,
+                        data: inscricao.data_avaliacao_coordenador
+                      });
+                    }
+                  }
+                  
+                  // Feedback da Apresentação adicional (se vier do campo feedback_apresentacao do projeto)
+                  if (feedbackApresentacao && feedbackApresentacao !== inscricao.feedback_coordenador && (filtroFeedback === 'todos' || filtroFeedback === 'apresentacao')) {
+                    feedbacks.push({
+                      tipo: 'apresentacao',
+                      categoria: 'Apresentação',
+                      autor: 'Coordenador',
+                      status: inscricao.status === 'rejeitada_apresentacao' ? 'rejeitado' : 'aprovado',
+                      feedback: feedbackApresentacao,
+                      data: inscricao.data_avaliacao_coordenador
+                    });
+                  }
+                  
+                  // Feedback do Relatório Parcial (se houver)
+                  if (entregaRelatorioParcial?.feedback_orientador && (filtroFeedback === 'todos' || filtroFeedback === 'relatorio_parcial')) {
+                    feedbacks.push({
+                      tipo: 'relatorio_parcial',
+                      categoria: 'Relatório Parcial',
+                      autor: 'Orientador',
+                      status: entregaRelatorioParcial.status_aprovacao_orientador,
+                      feedback: entregaRelatorioParcial.feedback_orientador,
+                      data: entregaRelatorioParcial.data_avaliacao_orientador
+                    });
+                  }
+                  
+                  if (entregaRelatorioParcial?.feedback_coordenador && (filtroFeedback === 'todos' || filtroFeedback === 'relatorio_parcial')) {
+                    feedbacks.push({
+                      tipo: 'relatorio_parcial',
+                      categoria: 'Relatório Parcial',
+                      autor: 'Coordenador',
+                      status: entregaRelatorioParcial.status_aprovacao_coordenador,
+                      feedback: entregaRelatorioParcial.feedback_coordenador,
+                      data: entregaRelatorioParcial.data_avaliacao_coordenador
+                    });
+                  }
+                  
+                  // Se não houver feedbacks
+                  if (feedbacks.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <div className="text-6xl mb-4">📭</div>
+                        <p className="text-gray-500">
+                          {filtroFeedback === 'todos' 
+                            ? 'Nenhuma mensagem no momento' 
+                            : `Nenhum feedback encontrado para ${filtroFeedback === 'proposta' ? 'Proposta Inicial' : filtroFeedback === 'apresentacao' ? 'Apresentação' : 'Relatório Parcial'}`
+                          }
+                        </p>
+                      </div>
+                    );
+                  }
+                  
+                  // Renderizar feedbacks
+                  return (
+                    <div className="space-y-4">
+                      {feedbacks.map((fb, index) => (
+                        <div 
+                          key={index}
+                          className={`p-4 rounded-lg border-l-4 ${
+                            fb.status === 'rejeitado' 
+                              ? 'bg-red-50 border-red-500' 
+                              : fb.autor === 'Orientador'
+                              ? 'bg-green-50 border-green-500'
+                              : 'bg-blue-50 border-blue-500'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">
+                                {fb.status === 'rejeitado' ? '❌' : fb.autor === 'Orientador' ? '✅' : '🎓'}
+                              </span>
+                              <div>
+                                <p className={`font-bold ${
+                                  fb.status === 'rejeitado' 
+                                    ? 'text-red-800' 
+                                    : fb.autor === 'Orientador'
+                                    ? 'text-green-800'
+                                    : 'text-blue-800'
+                                }`}>
+                                  {fb.status === 'rejeitado' 
+                                    ? `Rejeitado - ${fb.categoria}` 
+                                    : `Avaliação ${fb.categoria}`
+                                  }
                                 </p>
-                              )}
+                                <p className="text-xs text-gray-500 font-medium">
+                                  {fb.autor}
+                                </p>
+                                {fb.data && (
+                                  <p className="text-sm text-gray-600">
+                                    {new Date(fb.data).toLocaleString('pt-BR', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className={`bg-white p-3 rounded border mt-2 ${
-                          inscricao.status_aprovacao_orientador === 'rejeitado' 
-                            ? 'border-red-200' 
-                            : 'border-green-200'
-                        }`}>
-                          <p className="text-gray-800 whitespace-pre-wrap">{inscricao.feedback_orientador}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Feedback do Coordenador */}
-                    {inscricao.feedback_coordenador && (
-                      <div className={`p-4 rounded-lg border-l-4 ${
-                        inscricao.status_aprovacao_coordenador === 'rejeitado' 
-                          ? 'bg-red-50 border-red-500' 
-                          : 'bg-blue-50 border-blue-500'
-                      }`}>
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xl">
-                              {inscricao.status_aprovacao_coordenador === 'rejeitado' ? '❌' : '🎓'}
-                            </span>
-                            <div>
-                              <p className={`font-bold ${
-                                inscricao.status_aprovacao_coordenador === 'rejeitado' 
-                                  ? 'text-red-800' 
-                                  : 'text-blue-800'
-                              }`}>
-                                {inscricao.status_aprovacao_coordenador === 'rejeitado' 
-                                  ? 'Rejeitado pelo Coordenador' 
-                                  : 'Avaliação do Coordenador'
-                                }
-                              </p>
-                              {inscricao.data_avaliacao_coordenador && (
-                                <p className="text-sm text-gray-600">
-                                  {new Date(inscricao.data_avaliacao_coordenador).toLocaleString('pt-BR', {
-                                    day: '2-digit',
-                                    month: '2-digit',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </p>
-                              )}
-                            </div>
+                          <div className={`bg-white p-3 rounded border mt-2 ${
+                            fb.status === 'rejeitado' 
+                              ? 'border-red-200' 
+                              : fb.autor === 'Orientador'
+                              ? 'border-green-200'
+                              : 'border-blue-200'
+                          }`}>
+                            <p className="text-gray-800 whitespace-pre-wrap">{fb.feedback}</p>
                           </div>
                         </div>
-                        <div className={`bg-white p-3 rounded border mt-2 ${
-                          inscricao.status_aprovacao_coordenador === 'rejeitado' 
-                            ? 'border-red-200' 
-                            : 'border-blue-200'
-                        }`}>
-                          <p className="text-gray-800 whitespace-pre-wrap">{inscricao.feedback_coordenador}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
               </Card>
             )}
 

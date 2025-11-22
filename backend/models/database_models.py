@@ -18,16 +18,24 @@ class StatusUsuario(str, enum.Enum):
 class StatusInscricao(str, enum.Enum):
     pendente_orientador = "pendente_orientador"  # Aguardando aprovação do orientador
     pendente_coordenador = "pendente_coordenador"  # Aprovada pelo orientador, aguardando coordenador
-    aprovada = "aprovada"  # Aprovada pelo coordenador
+    pendente_apresentacao = "pendente_apresentacao"  # Aguardando aprovação após apresentação
+    aprovada = "aprovada"  # Aprovada pelo coordenador após apresentação
     rejeitada_orientador = "rejeitada_orientador"  # Rejeitada pelo orientador
     rejeitada_coordenador = "rejeitada_coordenador"  # Rejeitada pelo coordenador
+    rejeitada_apresentacao = "rejeitada_apresentacao"  # Rejeitada após apresentação
 
 class EtapaProjeto(str, enum.Enum):
-    inscricao = "inscricao"
-    desenvolvimento = "desenvolvimento"
+    envio_proposta = "envio_proposta"
+    apresentacao_proposta = "apresentacao_proposta"
+    validacao = "validacao"
+    relatorio_mensal_1 = "relatorio_mensal_1"
+    relatorio_mensal_2 = "relatorio_mensal_2"
+    relatorio_mensal_3 = "relatorio_mensal_3"
+    relatorio_mensal_4 = "relatorio_mensal_4"
     relatorio_parcial = "relatorio_parcial"
-    apresentacao = "apresentacao"
-    relatorio_final = "relatorio_final"
+    relatorio_mensal_5 = "relatorio_mensal_5"
+    apresentacao_amostra = "apresentacao_amostra"
+    artigo_final = "artigo_final"
     concluido = "concluido"
 
 # Modelos
@@ -132,9 +140,25 @@ class Projeto(Base):
     objetivos = Column(Text, nullable=True)
     metodologia = Column(Text, nullable=True)
     
-    etapa_atual = Column(SQLEnum(EtapaProjeto), default=EtapaProjeto.inscricao)
+    etapa_atual = Column(SQLEnum(EtapaProjeto), default=EtapaProjeto.envio_proposta)
     data_inicio = Column(DateTime, nullable=True)
     data_conclusao = Column(DateTime, nullable=True)
+    
+    # Dados da apresentação (proposta inicial)
+    apresentacao_data = Column(String, nullable=True)  # Formato: YYYY-MM-DD
+    apresentacao_hora = Column(String, nullable=True)  # Formato: HH:MM
+    apresentacao_campus = Column(String, nullable=True)
+    apresentacao_sala = Column(String, nullable=True)
+    status_apresentacao = Column(String, default="pendente")  # pendente, aprovado, rejeitado
+    feedback_apresentacao = Column(Text, nullable=True)  # Feedback do coordenador sobre a apresentação
+    data_avaliacao_apresentacao = Column(DateTime, nullable=True)
+    
+    # Dados da apresentação na amostra científica
+    amostra_data = Column(String, nullable=True)  # Formato: YYYY-MM-DD
+    amostra_hora = Column(String, nullable=True)  # Formato: HH:MM
+    amostra_campus = Column(String, nullable=True)
+    amostra_sala = Column(String, nullable=True)
+    status_amostra = Column(String, default="pendente")  # pendente, agendado
     
     # Relacionamentos
     aluno = relationship("Usuario", back_populates="projetos_como_aluno", foreign_keys=[aluno_id])

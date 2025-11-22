@@ -28,13 +28,14 @@ const SubmeterProposta = () => {
 
   const areasConhecimento = [
     'Administração',
-    'Ciência da Computação',
-    'Direito',
-    'Economia',
-    'Engenharia',
+    'Ciência de Dados e Inteligência Artificial',
+    'Ciências Econômicas',
+    'Ciências Contábeis',
+    'Engenharia da Computação',
+    'Engenharia de Software',
+    'Engenharia da Produção',
     'Relações Internacionais',
-    'Comunicação Social',
-    'Psicologia',
+    'Direito',
     'Outro'
   ];
 

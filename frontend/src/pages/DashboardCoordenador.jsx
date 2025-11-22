@@ -9,6 +9,10 @@ const DashboardCoordenador = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('inscricoes');
   const [filterStatus, setFilterStatus] = useState('todos');
+  const [filterEtapa, setFilterEtapa] = useState('todas');
+  const [filterAno, setFilterAno] = useState('todos');
+  const [filterCurso, setFilterCurso] = useState('todos');
+  const [filterUnidade, setFilterUnidade] = useState('todas');
   const [inscricoes, setInscricoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,6 +29,9 @@ const DashboardCoordenador = () => {
   const [anoAtivo, setAnoAtivo] = useState(new Date().getFullYear());
   const [inscricoesAbertas, setInscricoesAbertas] = useState(true);
   const [loadingInscricoesStatus, setLoadingInscricoesStatus] = useState(false);
+  const [alunosExpandidos, setAlunosExpandidos] = useState({}); // Estado para controlar quais alunos estão expandidos
+  const [relatorioParcialModal, setRelatorioParcialModal] = useState({ open: false, entregaId: null, aprovar: true, feedback: '' });
+  const [apresentacaoAmostraModal, setApresentacaoAmostraModal] = useState({ open: false, entregaId: null, aprovar: true, feedback: '' });
 
   const loadInscricoes = async () => {
     try {
@@ -150,7 +157,12 @@ const DashboardCoordenador = () => {
 
   const carregarEntregasAluno = async (alunoId, nomeAluno = null) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/coordenadores/alunos/${alunoId}/entregas`);
+      console.log('🔍 Carregando entregas do aluno:', alunoId);
+      const url = `${API_BASE_URL}/coordenadores/alunos/${alunoId}/entregas`;
+      console.log('📡 URL:', url);
+      
+      const res = await fetch(url);
+      console.log('📥 Response status:', res.status);
       
       if (!res.ok) throw new Error('Falha ao carregar entregas do aluno');
       
@@ -158,10 +170,12 @@ const DashboardCoordenador = () => {
       const text = await res.text();
       const data = text ? JSON.parse(text) : null;
       
+      console.log('📦 Entregas recebidas:', data);
+      
       setSelectedAlunoEntregas({ id: alunoId, nome: nomeAluno || `Aluno #${alunoId}` });
       setEntregasAluno(data?.entregas || []);
     } catch (e) {
-      console.error('Erro ao carregar entregas:', e);
+      console.error('❌ Erro ao carregar entregas:', e);
       alert('Erro ao carregar entregas do aluno');
     }
   };
@@ -192,6 +206,106 @@ const DashboardCoordenador = () => {
     } catch (e) {
       console.error('Erro:', e);
       alert('Erro ao validar entrega: ' + e.message);
+    }
+  };
+
+  const avaliarApresentacaoAmostra = async () => {
+    try {
+      if (!apresentacaoAmostraModal.aprovar && !apresentacaoAmostraModal.feedback.trim()) {
+        alert('É necessário fornecer um feedback ao recusar.');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/coordenadores/apresentacao-amostra/${apresentacaoAmostraModal.entregaId}/avaliar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          aprovar: apresentacaoAmostraModal.aprovar,
+          feedback: apresentacaoAmostraModal.feedback || ''
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Falha ao avaliar apresentação na amostra');
+      }
+
+      const data = await res.json();
+      
+      // Atualiza localmente
+      setEntregasAluno((prev) => prev.map(e => 
+        e.id === apresentacaoAmostraModal.entregaId ? {
+          ...e,
+          status_aprovacao_coordenador: apresentacaoAmostraModal.aprovar ? 'aprovado' : 'rejeitado',
+          feedback_coordenador: apresentacaoAmostraModal.feedback || '',
+          data_avaliacao_coordenador: new Date().toISOString()
+        } : e
+      ));
+
+      alert(`Apresentação na amostra ${apresentacaoAmostraModal.aprovar ? 'aprovada' : 'recusada'} com sucesso!`);
+      
+      // Fecha o modal
+      setApresentacaoAmostraModal({ open: false, entregaId: null, aprovar: true, feedback: '' });
+      
+      // Recarrega as entregas para ter certeza de que está atualizado
+      if (selectedAlunoEntregas) {
+        await carregarEntregasAluno(selectedAlunoEntregas.id, selectedAlunoEntregas.nome);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao avaliar apresentação na amostra:', err);
+      alert(`Erro ao avaliar apresentação: ${err.message}`);
+    }
+  };
+
+  const avaliarRelatorioParcial = async () => {
+    try {
+      if (!relatorioParcialModal.aprovar && !relatorioParcialModal.feedback.trim()) {
+        alert('É necessário fornecer um feedback ao recusar.');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/coordenadores/relatorio-parcial/${relatorioParcialModal.entregaId}/avaliar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          aprovar: relatorioParcialModal.aprovar,
+          feedback: relatorioParcialModal.feedback || ''
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Falha ao avaliar relatório parcial');
+      }
+
+      const data = await res.json();
+      
+      // Atualiza localmente
+      setEntregasAluno((prev) => prev.map(e => 
+        e.id === relatorioParcialModal.entregaId ? {
+          ...e,
+          status_aprovacao_coordenador: relatorioParcialModal.aprovar ? 'aprovado' : 'rejeitado',
+          feedback_coordenador: relatorioParcialModal.feedback || '',
+          data_avaliacao_coordenador: new Date().toISOString()
+        } : e
+      ));
+
+      alert(`Relatório parcial ${relatorioParcialModal.aprovar ? 'aprovado' : 'recusado'} com sucesso!`);
+      
+      // Fecha o modal
+      setRelatorioParcialModal({ open: false, entregaId: null, aprovar: true, feedback: '' });
+      
+      // Recarrega as entregas para ter certeza de que está atualizado
+      if (selectedAlunoEntregas) {
+        await carregarEntregasAluno(selectedAlunoEntregas.id, selectedAlunoEntregas.nome);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao avaliar relatório parcial:', err);
+      alert(`Erro ao avaliar relatório parcial: ${err.message}`);
     }
   };
 
@@ -251,31 +365,95 @@ const DashboardCoordenador = () => {
     setPropostaDetalhada(null);
   };
 
+  // Filtrar inscrições excluindo as rejeitadas
+  const inscricoesAtivas = inscricoes.filter(i => 
+    i.status !== 'rejeitada' && 
+    i.status !== 'rejeitada_orientador' && 
+    i.status !== 'rejeitada_coordenador'
+  );
+
   const estatisticas = {
-    total: inscricoes.length,
-    aprovados: inscricoes.filter(i => i.status === 'aprovada').length,
-    pendentes: inscricoes.filter(i => i.status === 'pendente' || i.status === 'em_analise' || i.status === 'pendente_coordenador' || i.status === 'pendente_orientador').length,
+    total: inscricoesAtivas.length,
+    aprovados: inscricoesAtivas.filter(i => i.status === 'aprovada').length,
+    pendentes: inscricoesAtivas.filter(i => i.status === 'pendente' || i.status === 'em_analise' || i.status === 'pendente_coordenador' || i.status === 'pendente_orientador').length,
     rejeitados: inscricoes.filter(i => i.status === 'rejeitada' || i.status === 'rejeitada_orientador' || i.status === 'rejeitada_coordenador').length,
-    alunos: inscricoes.filter(i => i.tipo === 'aluno' || i.usuario_id).length,
-    orientadores: inscricoes.filter(i => i.tipo === 'orientador').length
+    alunos: [...new Set(inscricoesAtivas.filter(i => i.usuario_id).map(i => i.usuario_id))].length,
+    orientadores: [...new Set(inscricoesAtivas.filter(i => i.orientador_id).map(i => i.orientador_id))].length
   };
 
+  // Mapeamento de etapas para labels
+  const etapaLabels = {
+    envio_proposta: 'Submissão de Documentação e Proposta Inicial',
+    apresentacao_proposta: 'Apresentação e Defesa da Proposta de Pesquisa',
+    validacao: 'Avaliação e Homologação da Proposta',
+    relatorio_mensal_1: 'Primeiro Relatório de Atividades Mensais',
+    relatorio_mensal_2: 'Segundo Relatório de Atividades Mensais',
+    relatorio_mensal_3: 'Terceiro Relatório de Atividades Mensais',
+    relatorio_mensal_4: 'Quarto Relatório de Atividades Mensais',
+    relatorio_parcial: 'Relatório Parcial de Pesquisa',
+    relatorio_mensal_5: 'Quinto Relatório de Atividades Mensais',
+    apresentacao_amostra: 'Apresentação em Mostra Científica',
+    artigo_final: 'Submissão do Artigo Científico Final',
+    concluido: 'Projeto Concluído',
+  };
+
+  // Aplicar filtros de etapa, ano, curso e unidade (ANTES do filtro de status)
+  let baseFiltered = inscricoes;
+  
+  if (filterEtapa !== 'todas') {
+    baseFiltered = baseFiltered.filter(i => i.etapa === filterEtapa);
+  }
+  
+  if (filterAno !== 'todos') {
+    baseFiltered = baseFiltered.filter(i => i.ano === parseInt(filterAno));
+  }
+  
+  if (filterCurso !== 'todos') {
+    baseFiltered = baseFiltered.filter(i => i.curso && i.curso.toLowerCase().includes(filterCurso.toLowerCase()));
+  }
+  
+  if (filterUnidade !== 'todas') {
+    baseFiltered = baseFiltered.filter(i => i.unidade && i.unidade.toLowerCase() === filterUnidade.toLowerCase());
+  }
+
+  // Recalcular estatísticas com base nos filtros aplicados
+  const estatisticasFiltradas = {
+    total: baseFiltered.length,
+    aprovados: baseFiltered.filter(i => i.status === 'aprovada').length,
+    pendentes: baseFiltered.filter(i => i.status === 'pendente' || i.status === 'em_analise' || i.status === 'pendente_coordenador' || i.status === 'pendente_orientador').length,
+    rejeitados: baseFiltered.filter(i => i.status === 'rejeitada' || i.status === 'rejeitada_orientador' || i.status === 'rejeitada_coordenador').length,
+  };
+
+  // Aplicar filtro de status por último
   const filteredInscricoes = filterStatus === 'todos' 
-    ? inscricoes 
+    ? baseFiltered 
     : filterStatus === 'em_analise'
-    ? inscricoes.filter(i => 
+    ? baseFiltered.filter(i => 
         i.status === 'em_analise' || 
         i.status === 'pendente_orientador' || 
         i.status === 'pendente_coordenador' ||
         i.status === 'pendente'
       )
     : filterStatus === 'rejeitada'
-    ? inscricoes.filter(i => 
+    ? baseFiltered.filter(i => 
         i.status === 'rejeitada' || 
         i.status === 'rejeitada_orientador' || 
         i.status === 'rejeitada_coordenador'
       )
-    : inscricoes.filter(i => i.status === filterStatus);
+    : baseFiltered.filter(i => i.status === filterStatus);
+
+  // Lista fixa de todos os cursos disponíveis na instituição
+  const cursosDisponiveis = [
+    'Administração',
+    'Ciência de Dados e Inteligência Artificial',
+    'Ciências Econômicas',
+    'Ciências Contábeis',
+    'Engenharia da Computação',
+    'Engenharia de Software',
+    'Engenharia da Produção',
+    'Relações Internacionais',
+    'Direito'
+  ].sort();
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -412,9 +590,12 @@ const DashboardCoordenador = () => {
           <Card>
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-ibmec-blue-700">⚙️ Gestão de Status dos Projetos</h2>
+                <h2 className="text-xl font-bold text-ibmec-blue-700">⚙️ Gestão de Status e Apresentações</h2>
                 <p className="text-gray-600 text-sm mt-1">
                   Atualize a etapa/estado dos projetos dos alunos (proposta, relatório parcial, apresentação na amostra, artigo final, finalizado).
+                </p>
+                <p className="text-gray-600 text-sm mt-1">
+                  Também permite agendar as apresentações dos projetos e as apresentações na amostra científica, definindo data, horário, campus e sala.
                 </p>
               </div>
               <div className="shrink-0">
@@ -519,7 +700,7 @@ const DashboardCoordenador = () => {
                     : 'text-gray-600 hover:text-ibmec-blue-600'
                 }`}
               >
-                📋 Gerenciar Inscrições
+                📋 Gerenciar Etapas
               </button>
               <button
                 onClick={() => setActiveTab('relatorios')}
@@ -540,48 +721,183 @@ const DashboardCoordenador = () => {
           <div className="space-y-6">
             {/* Filtros */}
             <Card>
-              <div className="flex flex-wrap gap-4 items-center">
-                <span className="font-semibold text-gray-700">Filtrar por status:</span>
-                <button
-                  onClick={() => setFilterStatus('todos')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    filterStatus === 'todos'
-                      ? 'bg-ibmec-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Todos ({inscricoes.length})
-                </button>
-                <button
-                  onClick={() => setFilterStatus('em_analise')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    filterStatus === 'em_analise'
-                      ? 'bg-yellow-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Em Análise ({estatisticas.pendentes})
-                </button>
-                <button
-                  onClick={() => setFilterStatus('aprovada')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    filterStatus === 'aprovada'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Aprovados ({estatisticas.aprovados})
-                </button>
-                <button
-                  onClick={() => setFilterStatus('rejeitada')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    filterStatus === 'rejeitada'
-                      ? 'bg-red-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Rejeitados ({estatisticas.rejeitados})
-                </button>
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-ibmec-blue-800 mb-1 flex items-center gap-2">
+                  🔍 Filtros de Pesquisa
+                </h3>
+                <p className="text-sm text-gray-600">Use os filtros abaixo para encontrar propostas específicas</p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Filtro por Status - Mantém como botões pois é o principal */}
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-3">Status da Proposta:</label>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => setFilterStatus('todos')}
+                      className={`px-4 py-2 rounded-lg font-semibold transition shadow-sm ${
+                        filterStatus === 'todos'
+                          ? 'bg-ibmec-blue-600 text-white shadow-md'
+                          : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-ibmec-blue-400 hover:bg-gray-50'
+                      }`}
+                    >
+                      📊 Todos ({estatisticasFiltradas.total})
+                    </button>
+                    <button
+                      onClick={() => setFilterStatus('em_analise')}
+                      className={`px-4 py-2 rounded-lg font-semibold transition shadow-sm ${
+                        filterStatus === 'em_analise'
+                          ? 'bg-yellow-600 text-white shadow-md'
+                          : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-yellow-400 hover:bg-gray-50'
+                      }`}
+                    >
+                      ⏳ Em Análise ({estatisticasFiltradas.pendentes})
+                    </button>
+                    <button
+                      onClick={() => setFilterStatus('aprovada')}
+                      className={`px-4 py-2 rounded-lg font-semibold transition shadow-sm ${
+                        filterStatus === 'aprovada'
+                          ? 'bg-green-600 text-white shadow-md'
+                          : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-green-400 hover:bg-gray-50'
+                      }`}
+                    >
+                      ✅ Aprovados ({estatisticasFiltradas.aprovados})
+                    </button>
+                    <button
+                      onClick={() => setFilterStatus('rejeitada')}
+                      className={`px-4 py-2 rounded-lg font-semibold transition shadow-sm ${
+                        filterStatus === 'rejeitada'
+                          ? 'bg-red-600 text-white shadow-md'
+                          : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-red-400 hover:bg-gray-50'
+                      }`}
+                    >
+                      ❌ Rejeitados ({estatisticasFiltradas.rejeitados})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid com 2 colunas para os dropdowns */}
+                <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
+                  {/* Filtro por Etapa */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      📋 Etapa do Projeto:
+                    </label>
+                    <select
+                      value={filterEtapa}
+                      onChange={(e) => setFilterEtapa(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent bg-white text-gray-700 hover:border-gray-400 transition"
+                    >
+                      <option value="todas">Todas as Etapas</option>
+                      {Object.entries(etapaLabels)
+                        .filter(([key]) => !key.startsWith('relatorio_mensal_'))
+                        .map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Filtro por Ano */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      📅 Ano:
+                    </label>
+                    <select
+                      value={filterAno}
+                      onChange={(e) => setFilterAno(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent bg-white text-gray-700 hover:border-gray-400 transition"
+                    >
+                      <option value="todos">Todos os Anos</option>
+                      {Array.from({ length: 10 }, (_, i) => {
+                        const ano = 2025 + i;
+                        return (
+                          <option key={ano} value={ano}>
+                            {ano}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Filtro por Curso */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      🎓 Curso:
+                    </label>
+                    <select
+                      value={filterCurso}
+                      onChange={(e) => setFilterCurso(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent bg-white text-gray-700 hover:border-gray-400 transition"
+                    >
+                      <option value="todos">Todos os Cursos</option>
+                      {cursosDisponiveis.map((curso) => (
+                        <option key={curso} value={curso}>
+                          {curso}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filtro por Unidade */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      🏢 Unidade:
+                    </label>
+                    <select
+                      value={filterUnidade}
+                      onChange={(e) => setFilterUnidade(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent bg-white text-gray-700 hover:border-gray-400 transition"
+                    >
+                      <option value="todas">Todas as Unidades</option>
+                      <option value="Faria Lima">Faria Lima</option>
+                      <option value="Paulista">Paulista</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Resumo dos filtros ativos */}
+                {(filterEtapa !== 'todas' || filterAno !== 'todos' || filterCurso !== 'todos' || filterUnidade !== 'todas') && (
+                  <div className="flex flex-wrap items-center gap-2 pt-4 border-t">
+                    <span className="text-sm font-semibold text-gray-700">Filtros ativos:</span>
+                    {filterEtapa !== 'todas' && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-ibmec-blue-100 text-ibmec-blue-800 rounded-full text-xs font-medium">
+                        Etapa: {etapaLabels[filterEtapa].substring(0, 30)}...
+                        <button onClick={() => setFilterEtapa('todas')} className="hover:text-ibmec-blue-900">✕</button>
+                      </span>
+                    )}
+                    {filterAno !== 'todos' && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-ibmec-blue-100 text-ibmec-blue-800 rounded-full text-xs font-medium">
+                        Ano: {filterAno}
+                        <button onClick={() => setFilterAno('todos')} className="hover:text-ibmec-blue-900">✕</button>
+                      </span>
+                    )}
+                    {filterCurso !== 'todos' && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-ibmec-blue-100 text-ibmec-blue-800 rounded-full text-xs font-medium">
+                        Curso: {filterCurso}
+                        <button onClick={() => setFilterCurso('todos')} className="hover:text-ibmec-blue-900">✕</button>
+                      </span>
+                    )}
+                    {filterUnidade !== 'todas' && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-ibmec-blue-100 text-ibmec-blue-800 rounded-full text-xs font-medium">
+                        Unidade: {filterUnidade}
+                        <button onClick={() => setFilterUnidade('todas')} className="hover:text-ibmec-blue-900">✕</button>
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setFilterEtapa('todas');
+                        setFilterAno('todos');
+                        setFilterCurso('todos');
+                        setFilterUnidade('todas');
+                      }}
+                      className="ml-2 px-3 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
+                    >
+                      Limpar todos os filtros
+                    </button>
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -612,6 +928,18 @@ const DashboardCoordenador = () => {
                         {inscricao.unidade && <p><strong>Unidade:</strong> {inscricao.unidade}</p>}
                         {inscricao.cr && <p><strong>CR:</strong> {inscricao.cr}</p>}
                         <p><strong>Data:</strong> {inscricao.data_submissao ? new Date(inscricao.data_submissao).toLocaleString('pt-BR') : '-'}</p>
+                        {inscricao.etapa && (
+                          <p className="md:col-span-2">
+                            <strong>Etapa Atual:</strong>{' '}
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                              inscricao.etapa === 'relatorio_parcial' 
+                                ? 'bg-yellow-100 text-yellow-800' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {etapaLabels[inscricao.etapa] || inscricao.etapa}
+                            </span>
+                          </p>
+                        )}
                       </div>
                       <div className="text-sm text-gray-600">
                         <p className="mb-2"><strong>Descrição:</strong> {inscricao.descricao?.substring(0, 150)}{inscricao.descricao?.length > 150 ? '...' : ''}</p>
@@ -637,8 +965,21 @@ const DashboardCoordenador = () => {
                         </>
                       )}
                       {inscricao.usuario_id && (
-                        <button onClick={() => carregarEntregasAluno(inscricao.usuario_id, inscricao.nome)} className="btn-outline text-sm py-2">
-                          📦 Ver Entregas do Aluno
+                        <button 
+                          onClick={() => carregarEntregasAluno(inscricao.usuario_id, inscricao.nome)} 
+                          className={`font-semibold py-2.5 px-4 rounded-lg transition text-sm flex items-center justify-center gap-2 ${
+                            inscricao.etapa === 'relatorio_parcial'
+                              ? 'bg-yellow-500 hover:bg-yellow-600 text-white shadow-lg animate-pulse'
+                              : inscricao.etapa === 'apresentacao_amostra'
+                              ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg animate-pulse'
+                              : 'bg-ibmec-blue-600 hover:bg-ibmec-blue-700 text-white'
+                          }`}
+                        >
+                          📋 {inscricao.etapa === 'relatorio_parcial' 
+                              ? 'Avaliar Relatório Parcial' 
+                              : inscricao.etapa === 'apresentacao_amostra'
+                              ? '🎤 Avaliar Apresentação na Amostra'
+                              : 'Ver Entregas e Relatórios'}
                         </button>
                       )}
                     </div>
@@ -654,33 +995,260 @@ const DashboardCoordenador = () => {
                 {entregasAluno.length === 0 ? (
                   <p className="text-gray-600">Nenhuma entrega registrada.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-gray-600 border-b">
-                          <th className="py-2 pr-4">ID</th>
-                          <th className="py-2 pr-4">Tipo</th>
-                          <th className="py-2 pr-4">Data</th>
-                          <th className="py-2 pr-4">Status</th>
-                          <th className="py-2 pr-4">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {entregasAluno.map((e) => (
-                          <tr key={e.id} className="border-b last:border-0">
-                            <td className="py-2 pr-4">{e.id}</td>
-                            <td className="py-2 pr-4">{e.tipo}</td>
-                            <td className="py-2 pr-4">{e.data ? new Date(e.data).toLocaleString('pt-BR') : '-'}</td>
-                            <td className="py-2 pr-4">{e.status}</td>
-                            <td className="py-2 pr-4 space-x-2">
-                              <button className="btn-secondary text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'aprovado')}>Aprovar</button>
-                              <button className="btn-outline text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'em revisão')}>Em revisão</button>
-                              <button className="btn-outline text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'rejeitado')}>Rejeitar</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-4">
+                    {/* Relatórios Parciais com status especial */}
+                    {entregasAluno.filter(e => e.tipo === 'relatorio_parcial').map((e) => {
+                      const pendenteOrientador = e.status_aprovacao_orientador === 'pendente';
+                      const pendenteCoordenador = e.status_aprovacao_orientador === 'aprovado' && e.status_aprovacao_coordenador === 'pendente';
+                      const aprovadoFinal = e.status_aprovacao_orientador === 'aprovado' && e.status_aprovacao_coordenador === 'aprovado';
+                      const rejeitado = e.status_aprovacao_orientador === 'rejeitado' || e.status_aprovacao_coordenador === 'rejeitado';
+                      
+                      return (
+                        <div key={e.id} className={`border-2 rounded-lg p-4 ${
+                          pendenteCoordenador ? 'border-yellow-500 bg-yellow-50' :
+                          pendenteOrientador ? 'border-blue-300 bg-blue-50' :
+                          aprovadoFinal ? 'border-green-500 bg-green-50' :
+                          rejeitado ? 'border-red-500 bg-red-50' :
+                          'border-gray-300 bg-gray-50'
+                        }`}>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <h4 className="text-lg font-bold text-ibmec-blue-800 mb-2">
+                                📄 Relatório Parcial
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <p><strong>Data de Envio:</strong> {e.data_entrega ? new Date(e.data_entrega).toLocaleString('pt-BR') : '-'}</p>
+                                {e.descricao && <p><strong>Descrição:</strong> {e.descricao}</p>}
+                                {e.arquivo && (
+                                  <p>
+                                    <strong>Arquivo:</strong>{' '}
+                                    <a 
+                                      href={`${API_BASE_URL}/uploads/entregas/${e.arquivo}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline"
+                                    >
+                                      📎 {e.arquivo}
+                                    </a>
+                                  </p>
+                                )}
+                                
+                                {/* Status de Aprovação */}
+                                <div className="flex gap-4 mt-3">
+                                  <div className={`px-3 py-2 rounded border-2 ${
+                                    e.status_aprovacao_orientador === 'aprovado' ? 'bg-green-100 border-green-500 text-green-800' :
+                                    e.status_aprovacao_orientador === 'rejeitado' ? 'bg-red-100 border-red-500 text-red-800' :
+                                    'bg-yellow-100 border-yellow-500 text-yellow-800'
+                                  }`}>
+                                    <p className="text-xs font-semibold">Orientador:</p>
+                                    <p className="text-sm">
+                                      {e.status_aprovacao_orientador === 'aprovado' ? '✅ Aprovado' :
+                                       e.status_aprovacao_orientador === 'rejeitado' ? '❌ Rejeitado' : '⏳ Pendente'}
+                                    </p>
+                                  </div>
+                                  {e.status_aprovacao_orientador === 'aprovado' && (
+                                    <div className={`px-3 py-2 rounded border-2 ${
+                                      e.status_aprovacao_coordenador === 'aprovado' ? 'bg-green-100 border-green-500 text-green-800' :
+                                      e.status_aprovacao_coordenador === 'rejeitado' ? 'bg-red-100 border-red-500 text-red-800' :
+                                      'bg-yellow-100 border-yellow-500 text-yellow-800'
+                                    }`}>
+                                      <p className="text-xs font-semibold">Coordenador:</p>
+                                      <p className="text-sm">
+                                        {e.status_aprovacao_coordenador === 'aprovado' ? '✅ Aprovado' :
+                                         e.status_aprovacao_coordenador === 'rejeitado' ? '❌ Rejeitado' : '⏳ Pendente'}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Feedbacks */}
+                                {e.feedback_orientador && (
+                                  <div className="mt-3 p-3 bg-blue-100 border-l-4 border-blue-500 rounded">
+                                    <p className="text-xs font-semibold text-blue-800 mb-1">Feedback do Orientador:</p>
+                                    <p className="text-sm text-gray-700">{e.feedback_orientador}</p>
+                                  </div>
+                                )}
+                                {e.feedback_coordenador && (
+                                  <div className="mt-3 p-3 bg-green-100 border-l-4 border-green-500 rounded">
+                                    <p className="text-xs font-semibold text-green-800 mb-1">Seu Feedback:</p>
+                                    <p className="text-sm text-gray-700">{e.feedback_coordenador}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Botões de Ação */}
+                            {pendenteCoordenador && (
+                              <div className="flex flex-col gap-2">
+                                <button 
+                                  onClick={() => setRelatorioParcialModal({ open: true, entregaId: e.id, aprovar: true, feedback: '' })}
+                                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm whitespace-nowrap"
+                                >
+                                  ✅ Aprovar
+                                </button>
+                                <button 
+                                  onClick={() => setRelatorioParcialModal({ open: true, entregaId: e.id, aprovar: false, feedback: '' })}
+                                  className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm whitespace-nowrap"
+                                >
+                                  ❌ Recusar
+                                </button>
+                              </div>
+                            )}
+                            {pendenteOrientador && (
+                              <div className="bg-blue-100 border border-blue-300 rounded-lg p-3">
+                                <p className="text-sm text-blue-800 font-semibold">⏳ Aguardando aprovação do orientador</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Apresentação na Amostra com status especial */}
+                    {entregasAluno.filter(e => e.tipo === 'apresentacao').map((e) => {
+                      const pendenteOrientador = e.status_aprovacao_orientador === 'pendente';
+                      const pendenteCoordenador = e.status_aprovacao_orientador === 'aprovado' && e.status_aprovacao_coordenador === 'pendente';
+                      const aprovadoFinal = e.status_aprovacao_orientador === 'aprovado' && e.status_aprovacao_coordenador === 'aprovado';
+                      const rejeitado = e.status_aprovacao_orientador === 'rejeitado' || e.status_aprovacao_coordenador === 'rejeitado';
+                      
+                      return (
+                        <div key={e.id} className={`border-2 rounded-lg p-4 ${
+                          pendenteCoordenador ? 'border-blue-500 bg-blue-50 shadow-lg animate-pulse' :
+                          pendenteOrientador ? 'border-blue-300 bg-blue-50' :
+                          aprovadoFinal ? 'border-green-500 bg-green-50' :
+                          rejeitado ? 'border-red-500 bg-red-50' :
+                          'border-gray-300 bg-gray-50'
+                        }`}>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <h4 className="text-lg font-bold text-blue-800 mb-2 flex items-center gap-2">
+                                🎤 Apresentação na Amostra
+                                {pendenteCoordenador && (
+                                  <span className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full animate-pulse">
+                                    ⚡ Requer sua avaliação
+                                  </span>
+                                )}
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <p><strong>Data de Envio:</strong> {e.data_entrega ? new Date(e.data_entrega).toLocaleString('pt-BR') : '-'}</p>
+                                {e.descricao && <p><strong>Descrição:</strong> {e.descricao}</p>}
+                                {e.arquivo && (
+                                  <p>
+                                    <strong>Arquivo:</strong>{' '}
+                                    <a 
+                                      href={`${API_BASE_URL}/uploads/entregas/${e.arquivo}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline"
+                                    >
+                                      📎 {e.arquivo}
+                                    </a>
+                                  </p>
+                                )}
+                                
+                                {/* Status de Aprovação */}
+                                <div className="flex gap-4 mt-3">
+                                  <div className={`px-3 py-2 rounded border-2 ${
+                                    e.status_aprovacao_orientador === 'aprovado' ? 'bg-green-100 border-green-500 text-green-800' :
+                                    e.status_aprovacao_orientador === 'rejeitado' ? 'bg-red-100 border-red-500 text-red-800' :
+                                    'bg-yellow-100 border-yellow-500 text-yellow-800'
+                                  }`}>
+                                    <p className="text-xs font-semibold">Orientador:</p>
+                                    <p className="text-sm">
+                                      {e.status_aprovacao_orientador === 'aprovado' ? '✅ Aprovado' :
+                                       e.status_aprovacao_orientador === 'rejeitado' ? '❌ Rejeitado' : '⏳ Pendente'}
+                                    </p>
+                                  </div>
+                                  {e.status_aprovacao_orientador === 'aprovado' && (
+                                    <div className={`px-3 py-2 rounded border-2 ${
+                                      e.status_aprovacao_coordenador === 'aprovado' ? 'bg-green-100 border-green-500 text-green-800' :
+                                      e.status_aprovacao_coordenador === 'rejeitado' ? 'bg-red-100 border-red-500 text-red-800' :
+                                      'bg-yellow-100 border-yellow-500 text-yellow-800'
+                                    }`}>
+                                      <p className="text-xs font-semibold">Coordenador:</p>
+                                      <p className="text-sm">
+                                        {e.status_aprovacao_coordenador === 'aprovado' ? '✅ Aprovado' :
+                                         e.status_aprovacao_coordenador === 'rejeitado' ? '❌ Rejeitado' : '⏳ Pendente'}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Feedbacks */}
+                                {e.feedback_orientador && (
+                                  <div className="mt-3 p-3 bg-blue-100 border-l-4 border-blue-500 rounded">
+                                    <p className="text-xs font-semibold text-blue-800 mb-1">Feedback do Orientador:</p>
+                                    <p className="text-sm text-gray-700">{e.feedback_orientador}</p>
+                                  </div>
+                                )}
+                                {e.feedback_coordenador && (
+                                  <div className="mt-3 p-3 bg-green-100 border-l-4 border-green-500 rounded">
+                                    <p className="text-xs font-semibold text-green-800 mb-1">Seu Feedback:</p>
+                                    <p className="text-sm text-gray-700">{e.feedback_coordenador}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Botões de Ação */}
+                            {pendenteCoordenador && (
+                              <div className="flex flex-col gap-2">
+                                <button 
+                                  onClick={() => setApresentacaoAmostraModal({ open: true, entregaId: e.id, aprovar: true, feedback: '' })}
+                                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition text-sm whitespace-nowrap shadow-lg flex items-center gap-2"
+                                >
+                                  ✅ Aprovar Apresentação
+                                </button>
+                                <button 
+                                  onClick={() => setApresentacaoAmostraModal({ open: true, entregaId: e.id, aprovar: false, feedback: '' })}
+                                  className="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition text-sm whitespace-nowrap shadow-lg flex items-center gap-2"
+                                >
+                                  ❌ Recusar Apresentação
+                                </button>
+                              </div>
+                            )}
+                            {pendenteOrientador && (
+                              <div className="bg-blue-100 border border-blue-300 rounded-lg p-3">
+                                <p className="text-sm text-blue-800 font-semibold">⏳ Aguardando aprovação do orientador</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Outras entregas em tabela */}
+                    {entregasAluno.filter(e => e.tipo !== 'relatorio_parcial' && e.tipo !== 'apresentacao').length > 0 && (
+                      <div className="overflow-x-auto mt-6">
+                        <h4 className="font-bold text-ibmec-blue-800 mb-3">Outras Entregas</h4>
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-gray-600 border-b">
+                              <th className="py-2 pr-4">ID</th>
+                              <th className="py-2 pr-4">Tipo</th>
+                              <th className="py-2 pr-4">Data</th>
+                              <th className="py-2 pr-4">Status</th>
+                              <th className="py-2 pr-4">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {entregasAluno.filter(e => e.tipo !== 'relatorio_parcial' && e.tipo !== 'apresentacao').map((e) => (
+                              <tr key={e.id} className="border-b last:border-0">
+                                <td className="py-2 pr-4">{e.id}</td>
+                                <td className="py-2 pr-4">{e.tipo}</td>
+                                <td className="py-2 pr-4">{e.data_entrega ? new Date(e.data_entrega).toLocaleString('pt-BR') : '-'}</td>
+                                <td className="py-2 pr-4">{e.status_aprovacao_coordenador || 'pendente'}</td>
+                                <td className="py-2 pr-4 space-x-2">
+                                  <button className="btn-secondary text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'aprovado')}>Aprovar</button>
+                                  <button className="btn-outline text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'em_revisao')}>Em revisão</button>
+                                  <button className="btn-outline text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'rejeitado')}>Rejeitar</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
               </Card>
@@ -746,20 +1314,36 @@ const DashboardCoordenador = () => {
                       return acc;
                     }, {});
 
-                    return Object.entries(porAluno).map(([alunoNome, relatorios]) => (
-                      <div key={alunoNome} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-                        <h4 className="font-bold text-ibmec-blue-800 mb-3 flex items-center gap-2">
-                          <span className="text-2xl">👨‍🎓</span>
-                          <span>Aluno: {alunoNome}</span>
-                          <span className="text-sm font-normal text-gray-600">
-                            ({relatorios.length} {relatorios.length === 1 ? 'relatório' : 'relatórios'})
-                          </span>
-                        </h4>
+                    return Object.entries(porAluno).map(([alunoNome, relatorios]) => {
+                      const alunoKey = `${selectedOrientador}-${alunoNome}`;
+                      const isExpanded = alunosExpandidos[alunoKey];
+                      
+                      return (
+                        <div key={alunoNome} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                          <div 
+                            className="flex items-center justify-between cursor-pointer hover:bg-gray-100 p-2 rounded transition"
+                            onClick={() => setAlunosExpandidos(prev => ({
+                              ...prev,
+                              [alunoKey]: !prev[alunoKey]
+                            }))}
+                          >
+                            <h4 className="font-bold text-ibmec-blue-800 flex items-center gap-2">
+                              <span className="text-2xl">👨‍🎓</span>
+                              <span>Aluno: {alunoNome}</span>
+                              <span className="text-sm font-normal text-gray-600">
+                                ({relatorios.length} {relatorios.length === 1 ? 'relatório' : 'relatórios'})
+                              </span>
+                            </h4>
+                            <button className="text-2xl text-ibmec-blue-600 transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                              ▶
+                            </button>
+                          </div>
                         
-                        <div className="space-y-2">
-                          {relatorios
-                            .sort((a, b) => new Date(b.mes) - new Date(a.mes))
-                            .map((rel) => (
+                        {isExpanded && (
+                          <div className="space-y-2 mt-4">
+                            {relatorios
+                              .sort((a, b) => new Date(b.mes) - new Date(a.mes))
+                              .map((rel) => (
                               <div key={rel.id} className="bg-white p-4 rounded-lg border border-gray-200 hover:shadow-md transition">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                                   <div className="flex-1">
@@ -854,9 +1438,11 @@ const DashboardCoordenador = () => {
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        )}
                         </div>
-                      </div>
-                    ));
+                      );
+                    });
                   })()}
                 </div>
               )}
@@ -1231,6 +1817,100 @@ const DashboardCoordenador = () => {
                   onClick={enviarRespostaRelatorio}
                 >
                   Enviar Resposta
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Avaliação de Relatório Parcial */}
+      {relatorioParcialModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
+                {relatorioParcialModal.aprovar ? '✅ Aprovar Relatório Parcial' : '❌ Recusar Relatório Parcial'}
+              </h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {relatorioParcialModal.aprovar ? 'Feedback (Opcional):' : 'Motivo da Recusa (Obrigatório):'}
+                </label>
+                <textarea
+                  value={relatorioParcialModal.feedback}
+                  onChange={(e) => setRelatorioParcialModal({ ...relatorioParcialModal, feedback: e.target.value })}
+                  placeholder={relatorioParcialModal.aprovar 
+                    ? 'Digite seu feedback sobre o relatório parcial...' 
+                    : 'Explique o motivo da recusa do relatório parcial...'}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent"
+                  rows="6"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button 
+                  className="btn-outline" 
+                  onClick={() => setRelatorioParcialModal({ open: false, entregaId: null, aprovar: true, feedback: '' })}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className={`font-semibold py-2 px-6 rounded-lg transition ${
+                    relatorioParcialModal.aprovar
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-red-600 hover:bg-red-700 text-white'
+                  }`}
+                  onClick={avaliarRelatorioParcial}
+                >
+                  {relatorioParcialModal.aprovar ? '✅ Confirmar Aprovação' : '❌ Confirmar Recusa'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Avaliação de Apresentação na Amostra */}
+      {apresentacaoAmostraModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
+                {apresentacaoAmostraModal.aprovar ? '✅ Aprovar Apresentação na Amostra' : '❌ Recusar Apresentação na Amostra'}
+              </h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {apresentacaoAmostraModal.aprovar ? 'Feedback (Opcional):' : 'Motivo da Recusa (Obrigatório):'}
+                </label>
+                <textarea
+                  value={apresentacaoAmostraModal.feedback}
+                  onChange={(e) => setApresentacaoAmostraModal({ ...apresentacaoAmostraModal, feedback: e.target.value })}
+                  placeholder={apresentacaoAmostraModal.aprovar 
+                    ? 'Digite seu feedback sobre a apresentação na amostra...' 
+                    : 'Explique o motivo da recusa da apresentação...'}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent"
+                  rows="6"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button 
+                  className="btn-outline" 
+                  onClick={() => setApresentacaoAmostraModal({ open: false, entregaId: null, aprovar: true, feedback: '' })}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className={`font-semibold py-2 px-6 rounded-lg transition ${
+                    apresentacaoAmostraModal.aprovar
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-red-600 hover:bg-red-700 text-white'
+                  }`}
+                  onClick={avaliarApresentacaoAmostra}
+                >
+                  {apresentacaoAmostraModal.aprovar ? '✅ Confirmar Aprovação' : '❌ Confirmar Recusa'}
                 </button>
               </div>
             </div>

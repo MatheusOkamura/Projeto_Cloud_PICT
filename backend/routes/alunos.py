@@ -162,12 +162,15 @@ async def enviar_entrega_etapa(
     db.add(nova_entrega)
     
     # Atualizar etapa do projeto se necessário
-    if etapa == 'relatorio_parcial' and projeto.etapa_atual == EtapaProjeto.desenvolvimento:
-        projeto.etapa_atual = EtapaProjeto.relatorio_parcial
-    elif etapa == 'apresentacao' and projeto.etapa_atual == EtapaProjeto.relatorio_parcial:
-        projeto.etapa_atual = EtapaProjeto.apresentacao
-    elif etapa == 'artigo_final' and projeto.etapa_atual == EtapaProjeto.apresentacao:
-        projeto.etapa_atual = EtapaProjeto.relatorio_final
+    if etapa == 'relatorio_parcial' and projeto.etapa_atual == EtapaProjeto.relatorio_parcial:
+        # Já está na etapa correta, apenas registra a entrega
+        pass
+    elif etapa == 'apresentacao' and projeto.etapa_atual == EtapaProjeto.apresentacao_amostra:
+        # Já está na etapa correta
+        pass
+    elif etapa == 'artigo_final' and projeto.etapa_atual == EtapaProjeto.artigo_final:
+        # Já está na etapa correta
+        pass
     
     db.commit()
     db.refresh(nova_entrega)
@@ -240,7 +243,13 @@ async def verificar_entrega_enviada(aluno_id: int, tipo: str, db: Session = Depe
                 "titulo": entrega.titulo,
                 "descricao": entrega.descricao,
                 "arquivo": entrega.arquivo,
-                "data_entrega": entrega.data_entrega.isoformat() if entrega.data_entrega else None
+                "data_entrega": entrega.data_entrega.isoformat() if entrega.data_entrega else None,
+                "status_aprovacao_orientador": entrega.status_aprovacao_orientador,
+                "status_aprovacao_coordenador": entrega.status_aprovacao_coordenador,
+                "feedback_orientador": entrega.feedback_orientador,
+                "feedback_coordenador": entrega.feedback_coordenador,
+                "data_avaliacao_orientador": entrega.data_avaliacao_orientador.isoformat() if entrega.data_avaliacao_orientador else None,
+                "data_avaliacao_coordenador": entrega.data_avaliacao_coordenador.isoformat() if entrega.data_avaliacao_coordenador else None
             }
         }
     

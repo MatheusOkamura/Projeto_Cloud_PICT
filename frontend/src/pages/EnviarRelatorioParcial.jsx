@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
 import API_BASE_URL from '../config/api';
@@ -13,7 +13,7 @@ const EnviarRelatorioParcial = () => {
   const [loading, setLoading] = useState(true);
 
   // Verificar se já enviou o relatório
-  useState(() => {
+  useEffect(() => {
     const verificarEntrega = async () => {
       if (!user?.id) return;
       

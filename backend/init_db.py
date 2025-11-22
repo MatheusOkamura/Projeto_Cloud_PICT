@@ -25,13 +25,14 @@ def seed_cursos():
         
         cursos = [
             {"nome": "Administração", "codigo": "ADM"},
-            {"nome": "Ciência da Computação", "codigo": "CC"},
-            {"nome": "Direito", "codigo": "DIR"},
-            {"nome": "Economia", "codigo": "ECO"},
-            {"nome": "Engenharia de Produção", "codigo": "EP"},
-            {"nome": "Jornalismo", "codigo": "JOR"},
+            {"nome": "Ciência de Dados e Inteligência Artificial", "codigo": "CDIA"},
+            {"nome": "Ciências Econômicas", "codigo": "ECO"},
+            {"nome": "Ciências Contábeis", "codigo": "CONT"},
+            {"nome": "Engenharia da Computação", "codigo": "ECOMP"},
+            {"nome": "Engenharia de Software", "codigo": "ESOFT"},
+            {"nome": "Engenharia da Produção", "codigo": "EPROD"},
             {"nome": "Relações Internacionais", "codigo": "RI"},
-            {"nome": "Sistemas de Informação", "codigo": "SI"},
+            {"nome": "Direito", "codigo": "DIR"},
         ]
         
         print("Inserindo cursos...")

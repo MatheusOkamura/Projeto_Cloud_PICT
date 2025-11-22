@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/Card';
 import API_BASE_URL from '../config/api';
 
 const DashboardOrientador = () => {
   const { user, updateUser } = useAuth();
+  const userIdRef = useRef(user?.id);
+  const hasFetchedRef = useRef(false);
   const [activeTab, setActiveTab] = useState('propostas');
   const [alunos, setAlunos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,7 @@ const DashboardOrientador = () => {
             if (data) {
               console.log('✅ Dados recebidos do backend:', data);
               setUserData(data);
-              updateUser(data);
+              // NÃO atualizar o contexto global aqui para evitar loop infinito
             }
           } catch (parseError) {
             console.error('❌ Erro ao fazer parse da resposta:', parseError);
@@ -60,10 +62,17 @@ const DashboardOrientador = () => {
     };
 
     if (user?.id) {
-      console.log('👤 Usuário atual:', user);
-      fetchUserData();
+      // Verificar se já fez fetch ou se o ID mudou
+      if (!hasFetchedRef.current || userIdRef.current !== user.id) {
+        console.log('👤 Usuário atual:', user);
+        userIdRef.current = user.id;
+        hasFetchedRef.current = true;
+        fetchUserData();
+      }
+    } else {
+      hasFetchedRef.current = false;
     }
-  }, [user?.id, updateUser]);
+  }, [user?.id]); // Removido updateUser das dependências
 
   useEffect(() => {
     const fetchAlunos = async () => {
@@ -259,9 +268,14 @@ const DashboardOrientador = () => {
   const enviarRelatorioMensal = async (e) => {
     e.preventDefault();
     if (!selectedAluno) return;
+    
+    // Obter o mês do campo hidden do formulário
+    const formData = new FormData(e.target);
+    const mes = formData.get('mes');
+    
     setUploadState((p) => ({ ...p, sending: true }));
     const fd = new FormData();
-    fd.append('mes', uploadState.mes);
+    fd.append('mes', mes);
     fd.append('descricao', uploadState.descricao);
     // Adicionar arquivo apenas se foi selecionado
     if (uploadState.arquivo) {
@@ -404,7 +418,9 @@ const DashboardOrientador = () => {
           <Card>
             <div className="text-center">
               <div className="text-4xl mb-2">🎓</div>
-              <p className="text-3xl font-bold text-ibmec-gold-600">2</p>
+              <p className="text-3xl font-bold text-ibmec-gold-600">
+                {alunos.filter(a => a.etapa_atual === 'concluido').length}
+              </p>
               <p className="text-gray-600 text-sm">Concluídos</p>
             </div>
           </Card>
@@ -762,25 +778,136 @@ const DashboardOrientador = () => {
             {/* Relatórios mensais - envio */}
             <Card>
               <h3 className="text-xl font-bold text-ibmec-blue-700 mb-4">🗓️ Enviar Relatório Mensal</h3>
-              <form onSubmit={enviarRelatorioMensal} className="grid md:grid-cols-3 gap-4 items-end">
-                <div>
-                  <label className="label">Mês (AAAA-MM)</label>
-                  <input type="month" name="mes" value={uploadState.mes} onChange={handleUploadChange} required className="input-field" />
-                </div>
-                <div className="md:col-span-1">
-                  <label className="label">Arquivo (PDF/DOC) - Opcional</label>
-                  <input type="file" name="arquivo" accept=".pdf,.doc,.docx" onChange={handleUploadChange} className="input-field" />
-                </div>
-                <div className="md:col-span-3">
-                  <label className="label">Descrição</label>
-                  <textarea name="descricao" value={uploadState.descricao} onChange={handleUploadChange} className="input-field" rows="3" placeholder="Breve resumo das atividades do mês..." required></textarea>
-                </div>
-                <div className="md:col-span-3 flex justify-end">
-                  <button type="submit" disabled={uploadState.sending} className="btn-primary">
-                    {uploadState.sending ? 'Enviando...' : 'Enviar Relatório'}
-                  </button>
-                </div>
-              </form>
+              
+              {(() => {
+                // Obter o ano do projeto ou usar o ano atual como fallback
+                const anoProjeto = selectedAluno?.ano_projeto || new Date().getFullYear();
+                
+                // Mapear etapa para mês correspondente
+                const mesesPorEtapa = {
+                  'relatorio_mensal_1': { mes: `${anoProjeto}-03`, nome: `Março/${anoProjeto}`, numero: 1, mesNum: 3 },
+                  'relatorio_mensal_2': { mes: `${anoProjeto}-04`, nome: `Abril/${anoProjeto}`, numero: 2, mesNum: 4 },
+                  'relatorio_mensal_3': { mes: `${anoProjeto}-05`, nome: `Maio/${anoProjeto}`, numero: 3, mesNum: 5 },
+                  'relatorio_mensal_4': { mes: `${anoProjeto}-06`, nome: `Junho/${anoProjeto}`, numero: 4, mesNum: 6 },
+                  'relatorio_mensal_5': { mes: `${anoProjeto}-09`, nome: `Setembro/${anoProjeto}`, numero: 5, mesNum: 9 }
+                };
+                
+                const etapaAtualInfo = mesesPorEtapa[etapaAtual];
+                const podeEnviar = etapaAtualInfo !== undefined;
+                
+                // Verificar relatórios atrasados
+                const etapaAtualNum = etapaAtual?.startsWith('relatorio_mensal_') 
+                  ? parseInt(etapaAtual.split('_').pop()) 
+                  : 0;
+                
+                const relatoriosAtrasados = [];
+                if (etapaAtualNum > 0) {
+                  for (let i = 1; i < etapaAtualNum; i++) {
+                    const etapaKey = `relatorio_mensal_${i}`;
+                    const etapaInfo = mesesPorEtapa[etapaKey];
+                    if (etapaInfo) {
+                      // Verificar se existe relatório enviado para este mês
+                      const relatorioEnviado = relatorios.some(rel => {
+                        // Extrair mês do título (formato: "Relatório Mensal - AAAA-MM")
+                        if (rel.titulo && rel.titulo.includes('-')) {
+                          const mesStr = rel.titulo.split(' - ')[1]; // "2026-03"
+                          const mesNumero = parseInt(mesStr?.split('-')[1]); // 3
+                          return mesNumero === etapaInfo.mesNum;
+                        }
+                        return false;
+                      });
+                      
+                      if (!relatorioEnviado) {
+                        relatoriosAtrasados.push({ numero: i, nome: etapaInfo.nome });
+                      }
+                    }
+                  }
+                }
+                
+                if (!podeEnviar) {
+                  return (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-yellow-800 text-sm">
+                        ⚠️ O envio de relatório mensal está disponível apenas quando o aluno estiver na etapa de um relatório mensal específico.
+                      </p>
+                      <p className="text-yellow-700 text-xs mt-2">
+                        Etapa atual: <span className="font-semibold">{etapaAtual || 'Não definida'}</span>
+                      </p>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <>
+                    {/* Alerta de relatórios atrasados */}
+                    {relatoriosAtrasados.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                        <p className="text-sm font-bold text-red-800 mb-2">
+                          ⚠️ Relatório{relatoriosAtrasados.length > 1 ? 's' : ''} Mensal{relatoriosAtrasados.length > 1 ? 'is' : ''} Não Enviado{relatoriosAtrasados.length > 1 ? 's' : ''}!
+                        </p>
+                        <p className="text-sm text-red-700 mb-2">
+                          Você não enviou {relatoriosAtrasados.length > 1 ? 'os seguintes relatórios' : 'o seguinte relatório'}:
+                        </p>
+                        <ul className="list-disc list-inside text-sm text-red-700 mb-2">
+                          {relatoriosAtrasados.map(rel => (
+                            <li key={rel.numero}>
+                              <span className="font-semibold">Relatório {rel.numero}</span> - {rel.nome}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-xs text-red-600">
+                          📞 Entre em contato com o coordenador para regularizar {relatoriosAtrasados.length > 1 ? 'esses relatórios' : 'este relatório'}.
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <p className="text-blue-800 text-sm font-medium">
+                        📅 Relatório Mensal {etapaAtualInfo.numero} - {etapaAtualInfo.nome}
+                      </p>
+                      <p className="text-blue-600 text-xs mt-1">
+                        Este relatório será associado automaticamente ao mês correto do ano {anoProjeto}.
+                      </p>
+                    </div>
+                    
+                    <form onSubmit={enviarRelatorioMensal} className="grid md:grid-cols-3 gap-4 items-end">
+                      <input type="hidden" name="mes" value={etapaAtualInfo.mes} />
+                      
+                      <div className="md:col-span-1">
+                        <label className="label">Arquivo (PDF/DOC) - Opcional</label>
+                        <input 
+                          type="file" 
+                          name="arquivo" 
+                          accept=".pdf,.doc,.docx" 
+                          onChange={handleUploadChange} 
+                          className="input-field" 
+                        />
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className="label">Descrição</label>
+                        <textarea 
+                          name="descricao" 
+                          value={uploadState.descricao} 
+                          onChange={handleUploadChange} 
+                          className="input-field" 
+                          rows="3" 
+                          placeholder="Breve resumo das atividades do mês..." 
+                          required
+                        ></textarea>
+                      </div>
+                      <div className="md:col-span-3 flex justify-end">
+                        <button 
+                          type="submit" 
+                          disabled={uploadState.sending} 
+                          className="btn-primary"
+                        >
+                          {uploadState.sending ? 'Enviando...' : `Enviar Relatório ${etapaAtualInfo.nome}`}
+                        </button>
+                      </div>
+                    </form>
+                  </>
+                );
+              })()}
             </Card>
 
             {/* Relatórios mensais - lista */}

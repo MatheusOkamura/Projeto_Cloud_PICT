@@ -6,7 +6,9 @@ from models.database_models import (
     StatusInscricao,
     Projeto,
     EtapaProjeto,
-    ConfiguracaoSistema
+    ConfiguracaoSistema,
+    Entrega,
+    RelatorioMensal
 )
 from typing import List, Optional
 from datetime import datetime
@@ -284,8 +286,20 @@ async def listar_inscricoes(
     
     inscricoes = query.all()
     
-    return [
-        {
+    resultado = []
+    for i in inscricoes:
+        # Buscar projeto associado para obter a etapa
+        projeto = db.query(Projeto).filter(Projeto.inscricao_id == i.id).first()
+        
+        # Se tem projeto, usar a etapa do projeto
+        # Se não tem projeto (ainda pendente), considerar como "envio_proposta"
+        if projeto:
+            etapa = projeto.etapa_atual.value
+        else:
+            # Inscrições pendentes ou em análise são consideradas na etapa de envio_proposta
+            etapa = "envio_proposta"
+        
+        resultado.append({
             "id": i.id,
             "usuario_id": i.usuario_id,
             "nome": i.nome,
@@ -312,10 +326,12 @@ async def listar_inscricoes(
             "data_avaliacao_orientador": i.data_avaliacao_orientador.isoformat() if i.data_avaliacao_orientador else None,
             "feedback_coordenador": i.feedback_coordenador,
             "status_aprovacao_coordenador": i.status_aprovacao_coordenador,
-            "data_avaliacao_coordenador": i.data_avaliacao_coordenador.isoformat() if i.data_avaliacao_coordenador else None
-        }
-        for i in inscricoes
-    ]
+            "data_avaliacao_coordenador": i.data_avaliacao_coordenador.isoformat() if i.data_avaliacao_coordenador else None,
+            "etapa": etapa,  # Adicionar etapa do projeto ou envio_proposta se pendente
+            "ano": i.ano  # Adicionar ano da inscrição
+        })
+    
+    return resultado
 
 @router.get("/orientador/{orientador_id}/pendentes")
 async def listar_propostas_pendentes_orientador(
@@ -488,7 +504,7 @@ async def atualizar_status(
                 descricao=inscricao.descricao,
                 objetivos=inscricao.objetivos,
                 metodologia=inscricao.metodologia,
-                etapa_atual=EtapaProjeto.desenvolvimento,
+                etapa_atual=EtapaProjeto.envio_proposta,
                 data_inicio=datetime.now()
             )
             
@@ -593,9 +609,15 @@ async def coordenador_avaliar(
     
     # Atualizar status conforme decisão
     if aprovar:
-        inscricao.status = StatusInscricao.aprovada
+        inscricao.status = StatusInscricao.pendente_apresentacao  # Mudança aqui
         inscricao.status_aprovacao_coordenador = "aprovado"
-        mensagem = "Proposta aprovada pelo coordenador. Projeto criado com sucesso!"
+        mensagem = "Proposta aprovada pelo coordenador. Aguardando apresentação e validação final!"
+        
+        # Obter o ano ativo das inscrições
+        config_ano = db.query(ConfiguracaoSistema).filter(
+            ConfiguracaoSistema.chave == 'ano_ativo_inscricoes'
+        ).first()
+        ano_projeto = int(config_ano.valor) if config_ano else datetime.now().year
         
         # Criar o projeto
         projeto_existente = db.query(Projeto).filter(
@@ -612,8 +634,10 @@ async def coordenador_avaliar(
                 descricao=inscricao.descricao,
                 objetivos=inscricao.objetivos,
                 metodologia=inscricao.metodologia,
-                etapa_atual=EtapaProjeto.desenvolvimento,
-                data_inicio=datetime.now()
+                etapa_atual=EtapaProjeto.apresentacao_proposta,  # Aguardando apresentação
+                data_inicio=datetime.now(),
+                status_apresentacao="pendente",  # Status inicial da apresentação
+                ano=ano_projeto  # Usar o ano definido pelo coordenador
             )
             db.add(novo_projeto)
     else:
@@ -638,7 +662,7 @@ async def coordenador_avaliar(
 @router.delete("/{inscricao_id}")
 async def deletar_inscricao(inscricao_id: int, db: Session = Depends(get_db)):
     """
-    Deletar uma inscrição.
+    Deletar uma inscrição e o projeto associado.
     """
     inscricao = db.query(InscricaoModel).filter(
         InscricaoModel.id == inscricao_id
@@ -650,7 +674,19 @@ async def deletar_inscricao(inscricao_id: int, db: Session = Depends(get_db)):
             detail="Inscrição não encontrada"
         )
     
+    # Buscar e deletar o projeto associado (se existir)
+    projeto = db.query(Projeto).filter(Projeto.inscricao_id == inscricao_id).first()
+    if projeto:
+        # Deletar entregas relacionadas ao projeto
+        db.query(Entrega).filter(Entrega.projeto_id == projeto.id).delete()
+        # Deletar relatórios mensais relacionados ao projeto
+        db.query(RelatorioMensal).filter(RelatorioMensal.projeto_id == projeto.id).delete()
+        # Deletar o projeto
+        db.delete(projeto)
+    
+    # Deletar a inscrição
     db.delete(inscricao)
     db.commit()
     
-    return {"message": "Inscrição deletada com sucesso"}
+    return {"message": "Inscrição e dados associados deletados com sucesso"}
+

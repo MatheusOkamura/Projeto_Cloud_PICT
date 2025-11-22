@@ -12,11 +12,17 @@ router = APIRouter()
 
 # Mapeamento das etapas válidas
 ETAPAS_VALIDAS = [
-    "inscricao",
-    "desenvolvimento",
+    "envio_proposta",
+    "apresentacao_proposta",
+    "validacao",
+    "relatorio_mensal_1",
+    "relatorio_mensal_2",
+    "relatorio_mensal_3",
+    "relatorio_mensal_4",
     "relatorio_parcial",
-    "apresentacao",
-    "relatorio_final",
+    "relatorio_mensal_5",
+    "apresentacao_amostra",
+    "artigo_final",
     "concluido"
 ]
 
@@ -86,7 +92,14 @@ async def listar_entregas_do_aluno(aluno_id: int, db: Session = Depends(get_db))
                 "descricao": e.descricao,
                 "arquivo": e.arquivo,
                 "data_entrega": e.data_entrega.isoformat() if e.data_entrega else None,
-                "prazo": e.prazo.isoformat() if e.prazo else None
+                "prazo": e.prazo.isoformat() if e.prazo else None,
+                "projeto_id": e.projeto_id,
+                "status_aprovacao_orientador": e.status_aprovacao_orientador,
+                "status_aprovacao_coordenador": e.status_aprovacao_coordenador,
+                "feedback_orientador": e.feedback_orientador,
+                "feedback_coordenador": e.feedback_coordenador,
+                "data_avaliacao_orientador": e.data_avaliacao_orientador.isoformat() if e.data_avaliacao_orientador else None,
+                "data_avaliacao_coordenador": e.data_avaliacao_coordenador.isoformat() if e.data_avaliacao_coordenador else None
             }
             for e in entregas
         ]
@@ -133,6 +146,104 @@ async def validar_entrega(projeto_id: int, entrega_id: int, novo_status: str, db
             "status_aprovacao_coordenador": novo_status,
             "data_avaliacao": entrega.data_avaliacao_coordenador.isoformat() if entrega.data_avaliacao_coordenador else None
         }
+    }
+
+@router.post("/coordenadores/relatorio-parcial/{entrega_id}/avaliar")
+async def avaliar_relatorio_parcial(
+    entrega_id: int,
+    dados: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Coordenador avalia o relatório parcial após aprovação do orientador.
+    """
+    aprovar = dados.get('aprovar', False)
+    feedback = dados.get('feedback', '')
+    
+    entrega = db.query(Entrega).filter(
+        Entrega.id == entrega_id,
+        Entrega.tipo == "relatorio_parcial"
+    ).first()
+    
+    if not entrega:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Relatório parcial não encontrado"
+        )
+    
+    # Verificar se o orientador já aprovou
+    if entrega.status_aprovacao_orientador != "aprovado":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O relatório parcial precisa ser aprovado pelo orientador primeiro"
+        )
+    
+    # Atualizar status de aprovação do coordenador
+    if aprovar:
+        entrega.status_aprovacao_coordenador = "aprovado"
+    else:
+        entrega.status_aprovacao_coordenador = "rejeitado"
+    
+    entrega.feedback_coordenador = feedback
+    entrega.data_avaliacao_coordenador = datetime.now()
+    
+    db.commit()
+    db.refresh(entrega)
+    
+    return {
+        "message": "Relatório parcial avaliado com sucesso",
+        "entrega_id": entrega.id,
+        "status_aprovacao_coordenador": entrega.status_aprovacao_coordenador,
+        "feedback": feedback
+    }
+
+@router.post("/coordenadores/apresentacao-amostra/{entrega_id}/avaliar")
+async def avaliar_apresentacao_amostra(
+    entrega_id: int,
+    dados: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Coordenador avalia a apresentação na amostra após aprovação do orientador.
+    """
+    aprovar = dados.get('aprovar', False)
+    feedback = dados.get('feedback', '')
+    
+    entrega = db.query(Entrega).filter(
+        Entrega.id == entrega_id,
+        Entrega.tipo == "apresentacao"
+    ).first()
+    
+    if not entrega:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Apresentação na amostra não encontrada"
+        )
+    
+    # Verificar se o orientador já aprovou
+    if entrega.status_aprovacao_orientador != "aprovado":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A apresentação precisa ser aprovada pelo orientador primeiro"
+        )
+    
+    # Atualizar status de aprovação do coordenador
+    if aprovar:
+        entrega.status_aprovacao_coordenador = "aprovado"
+    else:
+        entrega.status_aprovacao_coordenador = "rejeitado"
+    
+    entrega.feedback_coordenador = feedback
+    entrega.data_avaliacao_coordenador = datetime.now()
+    
+    db.commit()
+    db.refresh(entrega)
+    
+    return {
+        "message": "Apresentação na amostra avaliada com sucesso",
+        "entrega_id": entrega.id,
+        "status_aprovacao_coordenador": entrega.status_aprovacao_coordenador,
+        "feedback": feedback
     }
 
 @router.patch("/coordenadores/alunos/{aluno_id}/status-etapa")
@@ -424,4 +535,318 @@ async def alternar_status_inscricoes(
         "data_atualizacao": config.data_atualizacao.isoformat(),
         "atualizado_por": coordenador.nome
     }
+
+
+@router.get("/coordenadores/apresentacoes/alunos")
+async def listar_alunos_para_apresentacao(
+    db: Session = Depends(get_db)
+):
+    """
+    Lista todos os alunos que estão na etapa de apresentação (apresentacao_proposta)
+    """
+    try:
+        # Buscar todos os projetos na etapa de apresentação
+        projetos = db.query(Projeto).filter(
+            Projeto.etapa_atual == EtapaProjeto.apresentacao_proposta
+        ).all()
+        
+        alunos_apresentacao = []
+        for projeto in projetos:
+            aluno = db.query(Usuario).filter(Usuario.id == projeto.aluno_id).first()
+            orientador = db.query(Usuario).filter(Usuario.id == projeto.orientador_id).first()
+            
+            if aluno:
+                alunos_apresentacao.append({
+                    "projeto_id": projeto.id,
+                    "aluno_id": aluno.id,
+                    "nome": aluno.nome,
+                    "email": aluno.email,
+                    "curso": aluno.curso,
+                    "matricula": aluno.matricula,
+                    "projeto_titulo": projeto.titulo,
+                    "area_conhecimento": projeto.area_conhecimento,
+                    "orientador_nome": orientador.nome if orientador else "Não atribuído",
+                    "apresentacao_data": projeto.apresentacao_data,
+                    "apresentacao_hora": projeto.apresentacao_hora,
+                    "apresentacao_campus": projeto.apresentacao_campus,
+                    "apresentacao_sala": projeto.apresentacao_sala,
+                    "status_apresentacao": projeto.status_apresentacao,
+                    "feedback_apresentacao": projeto.feedback_apresentacao,
+                })
+        
+        return {
+            "alunos": alunos_apresentacao,
+            "total": len(alunos_apresentacao)
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar alunos: {str(e)}")
+
+
+@router.patch("/coordenadores/apresentacoes/agendar")
+async def agendar_apresentacoes(
+    dados: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Agenda data, hora e campus para as apresentações de todos os alunos na etapa apresentacao_proposta
+    """
+    try:
+        data = dados.get('data')
+        hora = dados.get('hora')
+        campus = dados.get('campus')
+        
+        if not data or not hora or not campus:
+            raise HTTPException(
+                status_code=400, 
+                detail="Data, hora e campus são obrigatórios"
+            )
+        
+        # Buscar todos os projetos na etapa de apresentação
+        projetos = db.query(Projeto).filter(
+            Projeto.etapa_atual == EtapaProjeto.apresentacao_proposta
+        ).all()
+        
+        if not projetos:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum aluno encontrado na etapa de apresentação"
+            )
+        
+        # Atualizar todos os projetos
+        projetos_atualizados = 0
+        for projeto in projetos:
+            projeto.apresentacao_data = data
+            projeto.apresentacao_hora = hora
+            projeto.apresentacao_campus = campus
+            projetos_atualizados += 1
+        
+        db.commit()
+        
+        return {
+            "message": f"Apresentações agendadas com sucesso para {projetos_atualizados} aluno(s)",
+            "total_agendado": projetos_atualizados,
+            "data": data,
+            "hora": hora,
+            "campus": campus
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao agendar apresentações: {str(e)}")
+
+
+@router.patch("/coordenadores/apresentacoes/{projeto_id}")
+async def atualizar_apresentacao_individual(
+    projeto_id: int,
+    dados: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Atualiza data, hora e campus de apresentação para um projeto específico
+    """
+    try:
+        projeto = db.query(Projeto).filter(Projeto.id == projeto_id).first()
+        
+        if not projeto:
+            raise HTTPException(status_code=404, detail="Projeto não encontrado")
+        
+        # Atualizar campos se fornecidos
+        if 'data' in dados:
+            projeto.apresentacao_data = dados['data']
+        if 'hora' in dados:
+            projeto.apresentacao_hora = dados['hora']
+        if 'campus' in dados:
+            projeto.apresentacao_campus = dados['campus']
+        if 'sala' in dados:
+            projeto.apresentacao_sala = dados['sala']
+        
+        db.commit()
+        
+        return {
+            "message": "Apresentação atualizada com sucesso",
+            "projeto_id": projeto.id,
+            "apresentacao_data": projeto.apresentacao_data,
+            "apresentacao_hora": projeto.apresentacao_hora,
+            "apresentacao_campus": projeto.apresentacao_campus,
+            "apresentacao_sala": projeto.apresentacao_sala
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar apresentação: {str(e)}")
+
+
+@router.patch("/coordenadores/apresentacoes/{projeto_id}/avaliar")
+async def avaliar_apresentacao(
+    projeto_id: int,
+    dados: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Aprovar ou recusar a proposta após a apresentação.
+    Espera: { "decisao": "aprovado" | "rejeitado", "feedback": "texto..." }
+    """
+    try:
+        from models.database_models import Inscricao, StatusInscricao
+        
+        projeto = db.query(Projeto).filter(Projeto.id == projeto_id).first()
+        
+        if not projeto:
+            raise HTTPException(status_code=404, detail="Projeto não encontrado")
+        
+        decisao = dados.get('decisao')
+        feedback = dados.get('feedback', '')
+        
+        if decisao not in ['aprovado', 'rejeitado']:
+            raise HTTPException(status_code=400, detail="Decisão inválida. Use 'aprovado' ou 'rejeitado'")
+        
+        # Atualizar status da apresentação no projeto
+        projeto.status_apresentacao = decisao
+        projeto.feedback_apresentacao = feedback
+        projeto.data_avaliacao_apresentacao = datetime.now()
+        
+        # Atualizar inscrição correspondente
+        if projeto.inscricao_id:
+            inscricao = db.query(Inscricao).filter(Inscricao.id == projeto.inscricao_id).first()
+            if inscricao:
+                if decisao == 'aprovado':
+                    inscricao.status = StatusInscricao.aprovada
+                    inscricao.feedback_coordenador = feedback
+                    inscricao.data_avaliacao_coordenador = datetime.now()
+                    
+                    # Mantém na etapa de apresentação - coordenador mudará manualmente quando necessário
+                    # projeto.etapa_atual permanece como apresentacao_proposta
+                else:
+                    inscricao.status = StatusInscricao.rejeitada_apresentacao
+                    inscricao.feedback_coordenador = feedback
+                    inscricao.data_avaliacao_coordenador = datetime.now()
+        
+        db.commit()
+        
+        return {
+            "message": f"Apresentação {decisao} com sucesso",
+            "projeto_id": projeto.id,
+            "status_apresentacao": projeto.status_apresentacao,
+            "etapa_atual": projeto.etapa_atual.value
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao avaliar apresentação: {str(e)}")
+
+
+@router.get("/coordenadores/apresentacoes-amostra/alunos")
+async def listar_alunos_apresentacao_amostra(
+    db: Session = Depends(get_db)
+):
+    """
+    Lista todos os alunos que têm apresentação na amostra aprovada (tipo='apresentacao' e coordenador aprovou)
+    """
+    try:
+        # Buscar entregas do tipo apresentacao que foram aprovadas
+        entregas_aprovadas = db.query(Entrega).filter(
+            Entrega.tipo == "apresentacao",
+            Entrega.status_aprovacao_orientador == "aprovado",
+            Entrega.status_aprovacao_coordenador == "aprovado"
+        ).all()
+        
+        alunos_amostra = []
+        for entrega in entregas_aprovadas:
+            projeto = db.query(Projeto).filter(Projeto.id == entrega.projeto_id).first()
+            if not projeto:
+                continue
+                
+            aluno = db.query(Usuario).filter(Usuario.id == projeto.aluno_id).first()
+            orientador = db.query(Usuario).filter(Usuario.id == projeto.orientador_id).first()
+            
+            if aluno:
+                alunos_amostra.append({
+                    "projeto_id": projeto.id,
+                    "aluno_id": aluno.id,
+                    "nome": aluno.nome,
+                    "email": aluno.email,
+                    "curso": aluno.curso,
+                    "matricula": aluno.matricula,
+                    "projeto_titulo": projeto.titulo,
+                    "area_conhecimento": projeto.area_conhecimento,
+                    "orientador_nome": orientador.nome if orientador else "Não atribuído",
+                    "amostra_data": getattr(projeto, 'amostra_data', None),
+                    "amostra_hora": getattr(projeto, 'amostra_hora', None),
+                    "amostra_campus": getattr(projeto, 'amostra_campus', None),
+                    "amostra_sala": getattr(projeto, 'amostra_sala', None),
+                    "status_amostra": getattr(projeto, 'status_amostra', 'pendente'),
+                })
+        
+        return {
+            "alunos": alunos_amostra,
+            "total": len(alunos_amostra)
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar alunos: {str(e)}")
+
+
+@router.patch("/coordenadores/apresentacoes-amostra/{projeto_id}")
+async def agendar_apresentacao_amostra(
+    projeto_id: int,
+    dados: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Agenda data, hora, campus e sala para a apresentação na amostra de um aluno específico
+    """
+    try:
+        projeto = db.query(Projeto).filter(Projeto.id == projeto_id).first()
+        
+        if not projeto:
+            raise HTTPException(status_code=404, detail="Projeto não encontrado")
+        
+        data = dados.get('data')
+        hora = dados.get('hora')
+        campus = dados.get('campus')
+        sala = dados.get('sala')
+        
+        if not all([data, hora, campus, sala]):
+            raise HTTPException(
+                status_code=400,
+                detail="Data, hora, campus e sala são obrigatórios"
+            )
+        
+        # Atualizar dados da apresentação na amostra (verificar se atributos existem)
+        if hasattr(projeto, 'amostra_data'):
+            projeto.amostra_data = data
+            projeto.amostra_hora = hora
+            projeto.amostra_campus = campus
+            projeto.amostra_sala = sala
+            projeto.status_amostra = "agendado"
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Campos de apresentação na amostra não existem no banco. Execute a migração primeiro."
+            )
+        
+        db.commit()
+        db.refresh(projeto)
+        
+        return {
+            "message": "Apresentação na amostra agendada com sucesso",
+            "projeto_id": projeto.id,
+            "amostra_data": projeto.amostra_data,
+            "amostra_hora": projeto.amostra_hora,
+            "amostra_campus": projeto.amostra_campus,
+            "amostra_sala": projeto.amostra_sala
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao agendar apresentação na amostra: {str(e)}")
 

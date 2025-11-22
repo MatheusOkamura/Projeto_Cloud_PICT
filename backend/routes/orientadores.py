@@ -58,7 +58,8 @@ async def listar_alunos_orientador(orientador_id: int, db: Session = Depends(get
             "projeto_titulo": projeto.titulo,
             "status": "ativo",
             "etapa": projeto.etapa_atual.value,
-            "data_inicio": projeto.data_inicio.isoformat() if projeto.data_inicio else None
+            "data_inicio": projeto.data_inicio.isoformat() if projeto.data_inicio else None,
+            "ano_projeto": projeto.ano  # Adicionar ano do projeto
         })
     
     return {"orientador_id": orientador_id, "alunos": alunos}
@@ -285,12 +286,23 @@ async def listar_relatorios_mensais(orientador_id: int, aluno_id: int, db: Sessi
             for m in mensagens
         ]
         
+        # Extrair mes_numero do título (formato: "Relatório Mensal - AAAA-MM")
+        mes_numero = None
+        if r.titulo and "-" in r.titulo:
+            try:
+                # Extrair AAAA-MM do título
+                mes_str = r.titulo.split(" - ")[-1]  # "2026-03"
+                mes_numero = int(mes_str.split("-")[-1])  # 3
+            except:
+                pass
+        
         relatorios_com_mensagens.append({
             "id": r.id,
             "titulo": r.titulo,
             "descricao": r.descricao,
             "arquivo": r.arquivo,
             "data_envio": r.data_entrega.isoformat() if r.data_entrega else None,
+            "mes_numero": mes_numero,
             "feedback_coordenador": r.feedback_coordenador,
             "data_feedback_coordenador": r.data_avaliacao_coordenador.isoformat() if r.data_avaliacao_coordenador else None,
             "resposta_orientador": r.feedback_orientador,
@@ -450,6 +462,36 @@ async def obter_status_etapa_por_aluno(aluno_id: int, db: Session = Depends(get_
         "orientador_id": projeto.orientador_id,
         "etapa": projeto.etapa_atual.value,
         "etapas_validas": ETAPAS_VALIDAS
+    }
+
+@router.get("/projetos/aluno/{aluno_id}")
+async def obter_projeto_aluno(aluno_id: int, db: Session = Depends(get_db)):
+    """
+    Obter dados completos do projeto de um aluno incluindo informações de apresentação.
+    """
+    projeto = db.query(Projeto).filter(Projeto.aluno_id == aluno_id).first()
+    
+    if not projeto:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Projeto não encontrado para este aluno"
+        )
+    
+    return {
+        "id": projeto.id,
+        "aluno_id": projeto.aluno_id,
+        "orientador_id": projeto.orientador_id,
+        "titulo": projeto.titulo,
+        "area_conhecimento": projeto.area_conhecimento,
+        "descricao": projeto.descricao,
+        "etapa_atual": projeto.etapa_atual.value,
+        "apresentacao_data": projeto.apresentacao_data,
+        "apresentacao_hora": projeto.apresentacao_hora,
+        "apresentacao_campus": projeto.apresentacao_campus,
+        "apresentacao_sala": projeto.apresentacao_sala,
+        "status_apresentacao": projeto.status_apresentacao,
+        "feedback_apresentacao": projeto.feedback_apresentacao,
+        "data_avaliacao_apresentacao": projeto.data_avaliacao_apresentacao,
     }
 
 @router.get("/alunos/{aluno_id}/projetos")
