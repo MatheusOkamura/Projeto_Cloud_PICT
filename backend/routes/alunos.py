@@ -109,7 +109,14 @@ async def enviar_entrega_etapa(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Etapa inválida. Use: {', '.join(etapas_validas)}"
         )
-    
+    # Definir título baseado na etapa
+    titulos = {
+        'relatorio_parcial': 'Relatório Parcial',
+        'apresentacao': 'Apresentação de Amostra',
+        'artigo_final': 'Artigo Final',
+        'relatorio_mensal': 'Relatório Mensal'
+    }
+
     # Verificar se já existe entrega desta etapa (exceto para relatorio_mensal que pode ser múltiplo)
     if etapa != 'relatorio_mensal':
         entrega_existente = db.query(Entrega).filter(
@@ -118,18 +125,13 @@ async def enviar_entrega_etapa(
         ).first()
         
         if entrega_existente:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Você já enviou {titulos.get(etapa, etapa)}. Não é possível enviar novamente."
-            )
-    
-    # Definir título baseado na etapa
-    titulos = {
-        'relatorio_parcial': 'Relatório Parcial',
-        'apresentacao': 'Apresentação de Amostra',
-        'artigo_final': 'Artigo Final',
-        'relatorio_mensal': 'Relatório Mensal'
-    }
+            status_orientador = entrega_existente.status_aprovacao_orientador or "pendente"
+            status_coordenador = entrega_existente.status_aprovacao_coordenador or "pendente"
+            if status_orientador != "rejeitado" and status_coordenador != "rejeitado":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Você já enviou {titulos.get(etapa, etapa)}. Não é possível enviar novamente."
+                )
     titulo = titulos.get(etapa, etapa)
     
     # Salvar arquivo
