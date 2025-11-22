@@ -6,7 +6,7 @@ import API_BASE_URL from '../config/api';
 
 const Cadastro = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -17,12 +17,11 @@ const Cadastro = () => {
     // Novos campos
     unidade: '',
     matricula: '',
-    cr: '',
-    departamento: '' // Para orientadores
+    departamento: '', // Para orientadores
+    area_pesquisa: '', // Para orientadores
+    titulacao: '' // Para orientadores
   });
   const [cursos, setCursos] = useState([]);
-  const [documentoCR, setDocumentoCR] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -57,28 +56,6 @@ const Cadastro = () => {
     }));
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validar formato do arquivo
-      const extensoesPermitidas = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-      if (!extensoesPermitidas.includes(file.type)) {
-        alert('Formato de arquivo não permitido. Use PDF, JPG ou PNG.');
-        e.target.value = '';
-        return;
-      }
-      
-      // Validar tamanho (máx 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Arquivo muito grande. Tamanho máximo: 5MB');
-        e.target.value = '';
-        return;
-      }
-      
-      setDocumentoCR(file);
-    }
-  };
-
   // Removido upload de proposta do cadastro. Propostas serão enviadas após o login.
 
   const handleSubmit = async (e) => {
@@ -87,45 +64,9 @@ const Cadastro = () => {
     // Limpar erro anterior
     setError('');
     
-    // Validar CR e documento apenas para alunos
-    if (formData.tipo === 'aluno') {
-      if (!formData.cr) {
-        setError('Por favor, informe o CR.');
-        return;
-      }
-      if (!documentoCR) {
-        setError('Por favor, envie o documento de CR.');
-        return;
-      }
-    }
-    
     setLoading(true);
 
     try {
-      // Upload do documento de CR apenas para alunos
-      let documentoCRPath = '';
-      if (formData.tipo === 'aluno' && documentoCR) {
-        setUploadProgress(true);
-        const formDataUpload = new FormData();
-        formDataUpload.append('email', formData.email);
-        formDataUpload.append('arquivo', documentoCR);
-
-        const uploadResponse = await fetch(`${API_BASE_URL}/auth/upload-documento-cr`, {
-          method: 'POST',
-          body: formDataUpload
-        });
-
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          documentoCRPath = uploadData.filename;
-        } else {
-          const errorData = await uploadResponse.json();
-          console.error('Erro no upload:', errorData);
-          throw new Error(errorData.detail || 'Erro ao fazer upload do documento de CR');
-        }
-        setUploadProgress(false);
-      }
-
       // Preparar dados para enviar ao backend
       const dadosCadastro = {
         email: formData.email,
@@ -139,10 +80,10 @@ const Cadastro = () => {
         dadosCadastro.curso = formData.curso;
         dadosCadastro.unidade = formData.unidade;
         dadosCadastro.matricula = formData.matricula;
-        dadosCadastro.cr = parseFloat(formData.cr);
-        dadosCadastro.documento_cr = documentoCRPath;
       } else if (formData.tipo === 'orientador') {
         dadosCadastro.departamento = formData.departamento;
+        dadosCadastro.area_pesquisa = formData.area_pesquisa;
+        dadosCadastro.titulacao = formData.titulacao;
       }
 
       // Enviar dados para o backend
@@ -182,15 +123,21 @@ const Cadastro = () => {
 
       console.log('✅ Cadastro completado:', result);
 
-      // Atualizar dados do usuário no localStorage com os dados retornados do backend
+      // Atualizar dados do usuário no localStorage E no contexto
       const updatedUser = result.user;
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      console.log('👤 Atualizando usuário:', updatedUser);
+      
+      // Atualizar no contexto (que também atualiza o localStorage)
+      updateUser(updatedUser);
       
       setSuccess(true);
+      console.log('✅ Estado success atualizado para true');
       
       // Redirecionar para o dashboard após 2 segundos
+      const dashboardUrl = `/dashboard-${updatedUser.tipo}`;
+      console.log('🔄 Redirecionando para:', dashboardUrl);
       setTimeout(() => {
-        window.location.href = `/dashboard-${updatedUser.tipo}`;
+        navigate(dashboardUrl, { replace: true });
       }, 2000);
       
     } catch (error) {
@@ -209,7 +156,6 @@ const Cadastro = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
-      setUploadProgress(false);
     }
   };
 
@@ -367,6 +313,46 @@ const Cadastro = () => {
               </div>
             </div>
 
+            {/* Campos específicos para ORIENTADORES */}
+            {formData.tipo === 'orientador' && (
+              <>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="area_pesquisa" className="label">Área de Atuação *</label>
+                    <input
+                      type="text"
+                      id="area_pesquisa"
+                      name="area_pesquisa"
+                      value={formData.area_pesquisa}
+                      onChange={handleChange}
+                      required
+                      className="input-field"
+                      placeholder="Ex: Inteligência Artificial, Banco de Dados..."
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="titulacao" className="label">Titulação *</label>
+                    <select
+                      id="titulacao"
+                      name="titulacao"
+                      value={formData.titulacao}
+                      onChange={handleChange}
+                      required
+                      className="input-field"
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="Graduado">Graduado</option>
+                      <option value="Especialista">Especialista</option>
+                      <option value="Mestre">Mestre</option>
+                      <option value="Doutor">Doutor</option>
+                      <option value="Pós-Doutor">Pós-Doutor</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* Campos específicos para ALUNOS */}
             {formData.tipo === 'aluno' && (
               <>
@@ -402,61 +388,6 @@ const Cadastro = () => {
                     />
                   </div>
                 </div>
-
-                {/* CR e Upload do Documento - Apenas para Alunos */}
-                {formData.tipo === 'aluno' && (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
-                    <h3 className="font-semibold text-ibmec-blue-800 mb-4">
-                      Coeficiente de Rendimento (CR)
-                    </h3>
-                    
-                    <div className="grid md:grid-cols-2 gap-6 mb-4">
-                      <div>
-                        <label htmlFor="cr" className="label">CR *</label>
-                        <input
-                          type="number"
-                          id="cr"
-                          name="cr"
-                          value={formData.cr}
-                          onChange={handleChange}
-                          required
-                          step="0.01"
-                          min="0"
-                          max="10"
-                          className="input-field"
-                          placeholder="Ex: 8.5"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="documento_cr" className="label">
-                        Documento de histórico de CR da faculdade *
-                      </label>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="file"
-                          id="documento_cr"
-                          onChange={handleFileChange}
-                          required
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          className="input-field"
-                        />
-                        <div className="flex items-center text-sm text-gray-600">
-                          <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M16.88 9.1A4 4 0 0 1 16 17H5a5 5 0 0 1-1-9.9V7a3 3 0 0 1 4.52-2.59A4.98 4.98 0 0 1 17 8c0 .38-.04.74-.12 1.1zM11 11h3l-4-4-4 4h3v3h2v-3z" />
-                          </svg>
-                          PDF, JPG ou PNG
-                        </div>
-                      </div>
-                      {documentoCR && (
-                        <p className="mt-2 text-sm text-green-600">
-                          ✓ Arquivo selecionado: {documentoCR.name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
               </>
             )}
 
@@ -479,10 +410,10 @@ const Cadastro = () => {
             <div className="flex gap-4">
               <button
                 type="submit"
-                disabled={loading || uploadProgress}
+                disabled={loading}
                 className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {uploadProgress ? 'Enviando documento...' : loading ? 'Salvando...' : 'Completar Cadastro'}
+                {loading ? 'Salvando...' : 'Completar Cadastro'}
               </button>
               <Link to="/login" className="btn-outline flex-1 text-center">
                 Voltar

@@ -26,6 +26,10 @@ const DashboardAluno = () => {
   const [amostraInfo, setAmostraInfo] = useState(null);
   const [feedbackApresentacao, setFeedbackApresentacao] = useState(null);
   const [filtroFeedback, setFiltroFeedback] = useState('todos'); // Estado para filtro de feedbacks
+  const [entregaArtigoFinal, setEntregaArtigoFinal] = useState(null);
+  const [certificadoInfo, setCertificadoInfo] = useState(null);
+  const [orientadores, setOrientadores] = useState([]);
+  const [loadingOrientadores, setLoadingOrientadores] = useState(false);
 
 
   // Verificar status das inscrições
@@ -69,6 +73,66 @@ const DashboardAluno = () => {
       }
     } catch (error) {
       console.error('Erro ao verificar status do relatório parcial:', error);
+    }
+  };
+
+  // Buscar status da entrega do artigo final
+  const fetchStatusArtigoFinal = async () => {
+    if (!user?.id) return;
+    try {
+      console.log('🔍 Buscando status do artigo final...');
+      const res = await fetch(`${API_BASE_URL}/alunos/${user.id}/verificar-entrega/artigo_final`);
+      if (res.ok) {
+        try {
+          const text = await res.text();
+          const data = text ? JSON.parse(text) : null;
+          console.log('📦 Dados do artigo final:', data);
+          if (data?.ja_enviou && data.entrega) {
+            console.log('✅ Status aprovação orientador:', data.entrega.status_aprovacao_orientador);
+            console.log('✅ Status aprovação coordenador:', data.entrega.status_aprovacao_coordenador);
+            setEntregaArtigoFinal(data.entrega);
+          }
+        } catch (parseError) {
+          console.error('Erro ao fazer parse da resposta:', parseError);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status do artigo final:', error);
+    }
+  };
+
+  // Buscar informações do certificado
+  const fetchCertificado = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/alunos/${user.id}/certificado`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.tem_certificado) {
+          setCertificadoInfo(data);
+        }
+      } else if (res.status === 404) {
+        // 404 é esperado quando não há certificado ainda
+        console.log('Certificado ainda não disponível');
+      }
+    } catch (error) {
+      console.error('Erro ao verificar certificado:', error);
+    }
+  };
+
+  // Buscar lista de orientadores
+  const fetchOrientadores = async () => {
+    setLoadingOrientadores(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/orientadores`);
+      if (res.ok) {
+        const data = await res.json();
+        setOrientadores(data.orientadores || []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar orientadores:', error);
+    } finally {
+      setLoadingOrientadores(false);
     }
   };
 
@@ -148,20 +212,12 @@ const DashboardAluno = () => {
                 
                 // Buscar informações da apresentação na amostra
                 if (projetoData.amostra_data) {
-                  console.log('✅ Dados da amostra encontrados:', {
-                    data: projetoData.amostra_data,
-                    hora: projetoData.amostra_hora,
-                    campus: projetoData.amostra_campus,
-                    sala: projetoData.amostra_sala
-                  });
                   setAmostraInfo({
                     data: projetoData.amostra_data,
                     hora: projetoData.amostra_hora,
                     campus: projetoData.amostra_campus,
                     sala: projetoData.amostra_sala
                   });
-                } else {
-                  console.log('❌ Sem dados de amostra no projeto:', projetoData);
                 }
               }
             } catch (error) {
@@ -189,6 +245,9 @@ const DashboardAluno = () => {
         fetchUserData();
         fetchInscricao();
         fetchStatusRelatorioParcial();
+        fetchStatusArtigoFinal();
+        fetchCertificado();
+        fetchOrientadores();
       }
     } else {
       setLoading(false);
@@ -423,35 +482,122 @@ const DashboardAluno = () => {
                     </div>
                   </Card>
                 ) : (
-                  <Card className={`mb-8 ${
-                    propostaRejeitada
-                      ? 'bg-gradient-to-r from-orange-500 to-orange-600'
-                      : 'bg-gradient-to-r from-ibmec-blue-500 to-ibmec-blue-600'
-                  } text-white`}>
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <h2 className="text-2xl font-bold mb-2">
-                          {propostaRejeitada
-                            ? '🔄 Proposta Rejeitada - Envie uma Nova'
-                            : ' Pronto para começar?'
-                          }
+                  <>
+                    {/* Card de Submeter Proposta */}
+                    <Card className={`mb-8 ${
+                      propostaRejeitada
+                        ? 'bg-gradient-to-r from-orange-500 to-orange-600'
+                        : 'bg-gradient-to-r from-ibmec-blue-500 to-ibmec-blue-600'
+                    } text-white`}>
+                      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <h2 className="text-2xl font-bold mb-2">
+                            {propostaRejeitada
+                              ? '🔄 Proposta Rejeitada - Envie uma Nova'
+                              : '📝 Pronto para começar?'
+                            }
+                          </h2>
+                          <p className={propostaRejeitada ? 'text-orange-50' : 'text-blue-50'}>
+                            {propostaRejeitada
+                              ? 'Sua proposta foi rejeitada. Revise o feedback abaixo e submeta uma nova proposta melhorada!'
+                              : 'Submeta sua proposta de iniciação científica e dê o primeiro passo na sua jornada de pesquisa!'
+                            }
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => navigate('/submeter-proposta')}
+                          className="bg-white px-8 py-3 rounded-lg font-bold hover:bg-gray-50 transition transform hover:scale-105 whitespace-nowrap"  
+                          style={{ color: propostaRejeitada ? '#f97316' : '#2563eb' }}
+                        >
+                          {propostaRejeitada ? '📝 Enviar Nova Proposta' : '📝 Submeter Proposta'}
+                        </button>
+                      </div>
+                    </Card>
+
+                    {/* Seção de Orientadores Disponíveis */}
+                    <Card className="mb-8">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-ibmec-blue-800">
+                          👨‍🏫 Orientadores Disponíveis
                         </h2>
-                        <p className={propostaRejeitada ? 'text-orange-50' : 'text-blue-50'}>
-                          {propostaRejeitada
-                            ? 'Sua proposta foi rejeitada. Revise o feedback abaixo e submeta uma nova proposta melhorada!'
-                            : 'Submeta sua proposta de iniciação científica e dê o primeiro passo na sua jornada de pesquisa!'
-                          }
+                        {orientadores.length > 0 && (
+                          <span className="text-sm text-gray-500">
+                            {orientadores.length} {orientadores.length === 1 ? 'orientador' : 'orientadores'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-600 text-sm mb-4">
+                        Escolha um orientador cuja área de atuação se alinhe com sua proposta de pesquisa.
+                      </p>
+                      
+                      {loadingOrientadores ? (
+                        <div className="text-center py-6">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ibmec-blue-600 mx-auto mb-2"></div>
+                          <p className="text-gray-600 text-sm">Carregando...</p>
+                        </div>
+                      ) : orientadores.length === 0 ? (
+                        <div className="text-center py-6">
+                          <p className="text-gray-500 text-sm">Nenhum orientador disponível no momento</p>
+                        </div>
+                      ) : (
+                        <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 sticky top-0">
+                              <tr>
+                                <th className="text-left px-4 py-3 font-semibold text-gray-700 border-b">Orientador</th>
+                                <th className="text-left px-4 py-3 font-semibold text-gray-700 border-b">Área de Atuação</th>
+                                <th className="text-center px-4 py-3 font-semibold text-gray-700 border-b w-24">Contato</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {orientadores.map((orientador, index) => (
+                                <tr 
+                                  key={orientador.id}
+                                  className={`hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                                >
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-8 h-8 bg-gradient-to-br from-ibmec-blue-500 to-ibmec-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                        {orientador.nome ? orientador.nome.charAt(0).toUpperCase() : '?'}
+                                      </div>
+                                      <span className="font-medium text-gray-800">{orientador.nome || 'Nome não informado'}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-gray-700">
+                                    {orientador.area_pesquisa || <span className="text-gray-400 italic">Não informado</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <a
+                                      href={`mailto:${orientador.email}`}
+                                      className="inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-ibmec-blue-600 hover:bg-ibmec-blue-700 rounded-md font-medium transition-colors"
+                                      title={orientador.email}
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                      </svg>
+                                      Email
+                                    </a>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      
+                      <div className="mt-4 bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
+                        <p className="text-xs text-blue-700">
+                          <span className="font-semibold">💡 Dica:</span> Entre em contato com o orientador antes de submeter sua proposta para alinhar expectativas sobre o tema.
                         </p>
                       </div>
-                      <button
-                        onClick={() => navigate('/submeter-proposta')}
-                        className="bg-white px-8 py-3 rounded-lg font-bold hover:bg-gray-50 transition transform hover:scale-105 whitespace-nowrap"  
-                        style={{ color: propostaRejeitada ? '#f97316' : '#2563eb' }}
-                      >
-                        {propostaRejeitada ? '📝 Enviar Nova Proposta' : '📝 Submeter Proposta'}
-                      </button>
-                    </div>
-                  </Card>
+
+                      <div className="mt-3 bg-amber-50 border-l-4 border-amber-500 p-3 rounded">
+                        <p className="text-xs text-amber-800">
+                          <span className="font-semibold">⚠️ Orientador não encontrado?</span> Entre em contato com o orientador desejado e solicite que ele realize o cadastro no site.
+                        </p>
+                      </div>
+                    </Card>
+                  </>
                 )}
               </>
             )}
@@ -503,23 +649,22 @@ const DashboardAluno = () => {
                   </Card>
                 )}
 
-                {/* Card de Apresentação na Amostra Agendada - Aparece independente da etapa quando há dados agendados */}
-                {console.log('🔍 Verificando card amostra:', { temProposta, amostraInfo })}
-                {temProposta && amostraInfo && (
-                  <Card className="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300">
+                {/* Card de Apresentação na Amostra Agendada - Só aparece na etapa apresentacao_amostra */}
+                {temProposta && amostraInfo && etapaAtual === 'apresentacao_amostra' && (
+                  <Card className="mb-6 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-300">
                     <div className="flex items-center gap-4">
-                      <div className="text-6xl">🎨</div>
+                      <div className="text-6xl">✅</div>
                       <div className="flex-1">
-                        <h2 className="text-2xl font-bold text-purple-800 mb-2">
-                          ✅ Apresentação na Amostra Agendada!
+                        <h2 className="text-2xl font-bold text-blue-800 mb-2">
+                          Apresentação na Amostra Agendada!
                         </h2>
-                        <p className="text-sm text-purple-700 mb-3">
+                        <p className="text-sm text-blue-700 mb-3">
                           Sua apresentação na mostra científica foi agendada pelo coordenador.
                         </p>
                         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className="bg-white p-3 rounded-lg shadow-sm">
                             <p className="text-xs text-gray-600 font-semibold mb-1">📅 DATA</p>
-                            <p className="text-lg font-bold text-purple-800">
+                            <p className="text-lg font-bold text-blue-800">
                               {new Date(amostraInfo.data + 'T00:00:00').toLocaleDateString('pt-BR', {
                                 day: '2-digit',
                                 month: 'long',
@@ -529,20 +674,20 @@ const DashboardAluno = () => {
                           </div>
                           <div className="bg-white p-3 rounded-lg shadow-sm">
                             <p className="text-xs text-gray-600 font-semibold mb-1">🕐 HORÁRIO</p>
-                            <p className="text-lg font-bold text-purple-800">{amostraInfo.hora}</p>
+                            <p className="text-lg font-bold text-blue-800">{amostraInfo.hora}</p>
                           </div>
                           <div className="bg-white p-3 rounded-lg shadow-sm">
                             <p className="text-xs text-gray-600 font-semibold mb-1">🏫 CAMPUS</p>
-                            <p className="text-lg font-bold text-purple-800">{amostraInfo.campus}</p>
+                            <p className="text-lg font-bold text-blue-800">{amostraInfo.campus}</p>
                           </div>
                           {amostraInfo.sala && (
                             <div className="bg-white p-3 rounded-lg shadow-sm">
                               <p className="text-xs text-gray-600 font-semibold mb-1">🚪 SALA</p>
-                              <p className="text-lg font-bold text-purple-800">{amostraInfo.sala}</p>
+                              <p className="text-lg font-bold text-blue-800">{amostraInfo.sala}</p>
                             </div>
                           )}
                         </div>
-                        <p className="text-sm text-purple-700 mt-3 font-medium">
+                        <p className="text-sm text-blue-700 mt-3 font-medium">
                           💡 Prepare seu material de apresentação e esteja no local no horário indicado para a mostra científica.
                         </p>
                       </div>
@@ -671,7 +816,7 @@ const DashboardAluno = () => {
                           className="absolute top-5 left-0 h-1 bg-blue-500 transition-all duration-500"
                           style={{
                             width: 
-                              etapaAtual === 'concluido' ? '100%' :
+                              etapaAtual === 'concluido' || (entregaArtigoFinal?.status_aprovacao_orientador === 'aprovado' && entregaArtigoFinal?.status_aprovacao_coordenador === 'aprovado') ? '100%' :
                               etapaAtual === 'artigo_final' ? '75%' :
                               etapaAtual === 'apresentacao_amostra' ? '50%' :
                               etapaAtual === 'relatorio_parcial' ? '25%' : '0%'
@@ -743,15 +888,26 @@ const DashboardAluno = () => {
                           {/* 3. Artigo Final */}
                           <div className="flex flex-col items-center z-10">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              etapaAtual === 'artigo_final'
+                              entregaArtigoFinal?.status_aprovacao_orientador === 'aprovado' && entregaArtigoFinal?.status_aprovacao_coordenador === 'aprovado'
+                                ? 'bg-green-500 text-white'
+                                : etapaAtual === 'artigo_final'
                                 ? 'bg-blue-500 text-white animate-pulse' 
                                 : etapaAtual === 'concluido'
                                 ? 'bg-green-500 text-white'
                                 : 'bg-gray-300 text-gray-600'
                             }`}>
-                              {etapaAtual === 'concluido' ? '✓' : '3'}
+                              {entregaArtigoFinal?.status_aprovacao_orientador === 'aprovado' && entregaArtigoFinal?.status_aprovacao_coordenador === 'aprovado' ? '✓' : etapaAtual === 'concluido' ? '✓' : '3'}
                             </div>
-                            <p className="text-xs mt-2 text-center font-medium w-20">Artigo Final</p>
+                            <p className={`text-xs mt-2 text-center font-medium w-20 ${
+                              entregaArtigoFinal?.status_aprovacao_orientador === 'aprovado' && entregaArtigoFinal?.status_aprovacao_coordenador === 'aprovado'
+                                ? 'text-green-600 font-semibold'
+                                : ''
+                            }`}>
+                              Artigo Final
+                              {entregaArtigoFinal?.status_aprovacao_orientador === 'aprovado' && entregaArtigoFinal?.status_aprovacao_coordenador === 'aprovado' && (
+                                <span className="block text-green-600 text-xs">✓ Aprovado</span>
+                              )}
+                            </p>
                           </div>
 
                           {/* 4. Certificado e Conclusão */}
@@ -899,48 +1055,46 @@ const DashboardAluno = () => {
                         </div>
                       )}
 
-                      {etapaAtual === 'apresentacao_amostra' && (
-                        <div className="mt-4">
-                          {amostraInfo ? (
-                            <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-500">
-                              <p className="text-sm font-bold text-purple-800 mb-3">
-                                ✅ Apresentação na Amostra Agendada!
+                    {etapaAtual === 'apresentacao_amostra' && (
+                      <div className="mt-4">
+                        {amostraInfo ? (
+                          <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                            <p className="text-sm font-bold text-blue-800 mb-3">
+                              ✅ Apresentação na Amostra Agendada!
+                            </p>
+                            <div className="space-y-2 text-sm text-blue-700">
+                              <p className="flex items-center">
+                                <span className="font-semibold mr-2">📅 Data:</span>
+                                {new Date(amostraInfo.data + 'T00:00:00').toLocaleDateString('pt-BR')}
                               </p>
-                              <div className="space-y-2 text-sm text-purple-700">
-                                <p className="flex items-center">
-                                  <span className="font-semibold mr-2">📅 Data:</span>
-                                  {new Date(amostraInfo.data + 'T00:00:00').toLocaleDateString('pt-BR')}
-                                </p>
-                                <p className="flex items-center">
-                                  <span className="font-semibold mr-2">🕐 Horário:</span>
-                                  {amostraInfo.hora}
-                                </p>
-                                <p className="flex items-center">
-                                  <span className="font-semibold mr-2">🏫 Campus:</span>
-                                  {amostraInfo.campus}
-                                </p>
-                                {amostraInfo.sala && (
-                                  <p className="flex items-center">
-                                    <span className="font-semibold mr-2">🚪 Sala:</span>
-                                    {amostraInfo.sala}
-                                  </p>
-                                )}
-                              </div>
-                              <p className="text-xs text-purple-600 mt-3">
-                                Prepare seu material de apresentação para a mostra científica.
+                              <p className="flex items-center">
+                                <span className="font-semibold mr-2">🕐 Horário:</span>
+                                {amostraInfo.hora}
                               </p>
+                              <p className="flex items-center">
+                                <span className="font-semibold mr-2">🏫 Campus:</span>
+                                {amostraInfo.campus}
+                              </p>
+                              {amostraInfo.sala && (
+                                <p className="flex items-center">
+                                  <span className="font-semibold mr-2">🚪 Sala:</span>
+                                  {amostraInfo.sala}
+                                </p>
+                              )}
                             </div>
-                          ) : (
-                            <div className="bg-yellow-50 p-3 rounded-lg border-l-4 border-yellow-500">
-                              <p className="text-sm font-semibold text-yellow-800">
-                                ⏳ Aguardando Agendamento - O coordenador agendará a data da sua apresentação na amostra em breve
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {etapaAtual && etapaAtual !== 'concluido' && etapaAtual !== 'apresentacao_proposta' && etapaAtual !== 'apresentacao_amostra' && (
+                            <p className="text-xs text-blue-600 mt-3">
+                              Prepare seu material de apresentação para a mostra científica.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="bg-yellow-50 p-3 rounded-lg border-l-4 border-yellow-500">
+                            <p className="text-sm font-semibold text-yellow-800">
+                              ⏳ Aguardando Agendamento - O coordenador agendará a data da sua apresentação na amostra em breve
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}                      {etapaAtual && etapaAtual !== 'concluido' && etapaAtual !== 'apresentacao_proposta' && etapaAtual !== 'apresentacao_amostra' && (
                         <div className="mt-4 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
                           <p className="text-sm font-semibold text-blue-800">
                             📍 Etapa Atual: {
@@ -1101,14 +1255,14 @@ const DashboardAluno = () => {
                     {etapaAtual === 'apresentacao_amostra' && (
                       <>
                         {amostraInfo && (
-                          <div className="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-6">
+                          <div className="mb-6 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-300 rounded-lg p-6">
                             <div className="flex items-center gap-4 mb-4">
-                              <div className="text-5xl">🎨</div>
+                              <div className="text-5xl">✅</div>
                               <div className="flex-1">
-                                <h3 className="text-2xl font-bold text-purple-800 mb-1">
-                                  ✅ Apresentação na Amostra Agendada!
+                                <h3 className="text-2xl font-bold text-blue-800 mb-1">
+                                  Apresentação na Amostra Agendada!
                                 </h3>
-                                <p className="text-sm text-purple-700">
+                                <p className="text-sm text-blue-700">
                                   Sua apresentação na mostra científica foi agendada pelo coordenador.
                                 </p>
                               </div>
@@ -1116,7 +1270,7 @@ const DashboardAluno = () => {
                             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
                               <div className="bg-white p-3 rounded-lg shadow-sm">
                                 <p className="text-xs text-gray-600 font-semibold mb-1">📅 DATA</p>
-                                <p className="text-lg font-bold text-purple-800">
+                                <p className="text-lg font-bold text-blue-800">
                                   {new Date(amostraInfo.data + 'T00:00:00').toLocaleDateString('pt-BR', {
                                     day: '2-digit',
                                     month: 'long',
@@ -1126,20 +1280,20 @@ const DashboardAluno = () => {
                               </div>
                               <div className="bg-white p-3 rounded-lg shadow-sm">
                                 <p className="text-xs text-gray-600 font-semibold mb-1">🕐 HORÁRIO</p>
-                                <p className="text-lg font-bold text-purple-800">{amostraInfo.hora}</p>
+                                <p className="text-lg font-bold text-blue-800">{amostraInfo.hora}</p>
                               </div>
                               <div className="bg-white p-3 rounded-lg shadow-sm">
                                 <p className="text-xs text-gray-600 font-semibold mb-1">🏫 CAMPUS</p>
-                                <p className="text-lg font-bold text-purple-800">{amostraInfo.campus}</p>
+                                <p className="text-lg font-bold text-blue-800">{amostraInfo.campus}</p>
                               </div>
                               {amostraInfo.sala && (
                                 <div className="bg-white p-3 rounded-lg shadow-sm">
                                   <p className="text-xs text-gray-600 font-semibold mb-1">🚪 SALA</p>
-                                  <p className="text-lg font-bold text-purple-800">{amostraInfo.sala}</p>
+                                  <p className="text-lg font-bold text-blue-800">{amostraInfo.sala}</p>
                                 </div>
                               )}
                             </div>
-                            <p className="text-sm text-purple-700 mt-3 font-medium">
+                            <p className="text-sm text-blue-700 mt-3 font-medium">
                               💡 Prepare seu material de apresentação e esteja no local no horário indicado para a mostra científica.
                             </p>
                           </div>
@@ -1155,6 +1309,85 @@ const DashboardAluno = () => {
                       </div>
                     )}
                   </Card>
+
+                  {/* Card de Conclusão - Aparece quando artigo final é aprovado */}
+                  {entregaArtigoFinal && 
+                   entregaArtigoFinal.status_aprovacao_orientador === 'aprovado' && 
+                   entregaArtigoFinal.status_aprovacao_coordenador === 'aprovado' && (
+                    <Card>
+                      <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-8 rounded-lg shadow-xl">
+                        <div className="text-center space-y-4">
+                          <div className="text-6xl mb-4">🎓🎉</div>
+                          <h2 className="text-3xl font-bold">
+                            Parabéns! Você concluiu todas as etapas!
+                          </h2>
+                          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-6 my-6">
+                            <p className="text-lg font-semibold mb-3">
+                              ✅ Todas as etapas da Iniciação Científica foram concluídas com sucesso!
+                            </p>
+                            <div className="space-y-2 text-left max-w-2xl mx-auto">
+                              <p className="flex items-start gap-2">
+                                <span className="text-xl">📝</span>
+                                <span>Relatório Parcial aprovado</span>
+                              </p>
+                              <p className="flex items-start gap-2">
+                                <span className="text-xl">🎨</span>
+                                <span>Apresentação na Amostra aprovada</span>
+                              </p>
+                              <p className="flex items-start gap-2">
+                                <span className="text-xl">📚</span>
+                                <span>Artigo Científico Final aprovado</span>
+                              </p>
+                              <p className="flex items-start gap-2">
+                                <span className="text-xl">📅</span>
+                                <span>5 Relatórios Mensais entregues ao orientador</span>
+                              </p>
+                            </div>
+                          </div>
+                          <div className="bg-white text-gray-900 rounded-lg p-6 shadow-lg">
+                            <p className="text-2xl font-bold mb-2">🏆 Certificado de Conclusão</p>
+                            {certificadoInfo ? (
+                              <>
+                                <p className="text-base mb-4">
+                                  Seu <strong>Certificado de Conclusão da Iniciação Científica</strong> está disponível!
+                                </p>
+                                <p className="text-sm text-gray-600 mb-4">
+                                  Emitido em: {new Date(certificadoInfo.data_emissao).toLocaleDateString('pt-BR', {
+                                    day: '2-digit',
+                                    month: 'long',
+                                    year: 'numeric'
+                                  })}
+                                </p>
+                                <a
+                                  href={`${API_BASE_URL}/uploads/certificados/${certificadoInfo.certificado_arquivo}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition shadow-lg"
+                                >
+                                  <span className="text-xl">📥</span>
+                                  Baixar Certificado (PDF)
+                                </a>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-base">
+                                  Seu <strong>Certificado de Conclusão da Iniciação Científica</strong> será emitido em breve pela coordenação do programa.
+                                </p>
+                                <p className="text-sm mt-3 font-semibold">
+                                  Você receberá o certificado em PDF diretamente pelo site quando estiver disponível.
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          <div className="pt-4">
+                            <p className="text-lg font-medium">
+                              Obrigado por sua dedicação e empenho no programa de Iniciação Científica! 🚀
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  )}
 
                   <Card>
                   <h2 className="text-2xl font-bold text-ibmec-blue-800 mb-4">

@@ -23,8 +23,35 @@ const SubmeterProposta = () => {
     objetivos: '',
     metodologia: '',
     resultados_esperados: '',
-    arquivo: null
+    arquivo: null,
+    cr: '',
+    comprovante_cr: null
   });
+
+  // Função para tratar upload do comprovante de CR
+  const handleComprovanteCrChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validar tipo de arquivo
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Por favor, envie apenas PDF ou imagem (.pdf, .jpg, .jpeg, .png)');
+        e.target.value = '';
+        return;
+      }
+      // Validar tamanho (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('O comprovante deve ter no máximo 5MB');
+        e.target.value = '';
+        return;
+      }
+      setError('');
+      setFormData(prev => ({
+        ...prev,
+        comprovante_cr: file
+      }));
+    }
+  };
 
   const areasConhecimento = [
     'Administração',
@@ -128,7 +155,10 @@ const SubmeterProposta = () => {
       submitData.append('objetivos', formData.objetivos || '');
       submitData.append('metodologia', formData.metodologia || '');
       submitData.append('resultados_esperados', formData.resultados_esperados || '');
-      
+      submitData.append('cr', formData.cr || '');
+      if (formData.comprovante_cr) {
+        submitData.append('comprovante_cr', formData.comprovante_cr);
+      }
       if (formData.arquivo) {
         submitData.append('projeto', formData.arquivo);
       }
@@ -317,9 +347,6 @@ const SubmeterProposta = () => {
                     {orientador.nome}
                     {orientador.titulacao && ` - ${orientador.titulacao}`}
                     {orientador.area_pesquisa && ` (${orientador.area_pesquisa})`}
-                    {orientador.vagas_disponiveis > 0 
-                      ? ` - ${orientador.vagas_disponiveis} vaga(s) disponível(is)` 
-                      : ' - Sem vagas no momento'}
                   </option>
                 ))}
               </select>
@@ -407,8 +434,65 @@ const SubmeterProposta = () => {
 
             {/* Upload de Arquivo */}
             <div>
+              {/* Campo CR */}
               <label className="label">
-                Documento do Projeto (Opcional)
+                Coeficiente de Rendimento (CR) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                name="cr"
+                value={formData.cr || ''}
+                onChange={handleChange}
+                className="input-field"
+                placeholder="Ex: 8.5"
+                min="0"
+                max="10"
+                step="0.01"
+                required
+              />
+              <p className="text-sm text-gray-500 mt-1">Informe seu CR atual (0 a 10).</p>
+
+              {/* Upload Comprovante CR */}
+              <label className="label mt-4">
+                Comprovante do CR <span className="text-red-500">*</span>
+              </label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-ibmec-blue-400 transition">
+                <div className="text-4xl mb-2">📑</div>
+                <input
+                  type="file"
+                  onChange={handleComprovanteCrChange}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  id="comprovante_cr"
+                />
+                <label htmlFor="comprovante_cr" className="cursor-pointer">
+                  {formData.comprovante_cr ? (
+                    <div>
+                      <p className="text-green-600 font-semibold mb-1">
+                        ✅ {formData.comprovante_cr.name}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {(formData.comprovante_cr.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                      <p className="text-sm text-ibmec-blue-600 mt-2 hover:underline">
+                        Clique para alterar
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-gray-700 font-semibold mb-1">
+                        Clique para selecionar o comprovante
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        PDF ou Imagem (.pdf, .jpg, .jpeg, .png) - Máx. 5MB
+                      </p>
+                    </div>
+                  )}
+                </label>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">Anexe o comprovante do seu CR (histórico ou declaração).</p>
+              <label className="label">
+                Documento do Projeto <span className="text-red-500">*</span>
               </label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-ibmec-blue-400 transition">
                 <div className="text-4xl mb-2">📄</div>
@@ -418,6 +502,7 @@ const SubmeterProposta = () => {
                   accept=".pdf,.doc,.docx"
                   className="hidden"
                   id="arquivo"
+                  required
                 />
                 <label htmlFor="arquivo" className="cursor-pointer">
                   {formData.arquivo ? (
@@ -445,7 +530,7 @@ const SubmeterProposta = () => {
                 </label>
               </div>
               <p className="text-sm text-gray-500 mt-2">
-                💡 Você pode anexar uma versão completa do seu projeto em PDF ou Word
+                💡 Anexe uma versão completa do seu projeto em PDF ou Word
               </p>
             </div>
 

@@ -334,3 +334,21 @@ async def obter_timeline_aluno(aluno_id: int, db: Session = Depends(get_db)):
         "total_entregas": len(entregas)
     }
 
+
+@router.get("/alunos/{aluno_id}/certificado")
+async def obter_certificado_aluno(aluno_id: int, db: Session = Depends(get_db)):
+    """
+    Verificar se o aluno tem certificado disponível.
+    """
+    projeto = db.query(Projeto).filter(Projeto.aluno_id == aluno_id).first()
+    
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    
+    return {
+        "tem_certificado": projeto.certificado_arquivo is not None,
+        "certificado_arquivo": projeto.certificado_arquivo,
+        "data_emissao": projeto.certificado_data_emissao.isoformat() if projeto.certificado_data_emissao else None
+    }
+
+

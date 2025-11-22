@@ -160,6 +160,10 @@ class Projeto(Base):
     amostra_sala = Column(String, nullable=True)
     status_amostra = Column(String, default="pendente")  # pendente, agendado
     
+    # Certificado de conclusão
+    certificado_arquivo = Column(String, nullable=True)  # Nome do arquivo PDF do certificado
+    certificado_data_emissao = Column(DateTime, nullable=True)
+    
     # Relacionamentos
     aluno = relationship("Usuario", back_populates="projetos_como_aluno", foreign_keys=[aluno_id])
     orientador = relationship("Usuario", back_populates="projetos_como_orientador", foreign_keys=[orientador_id])

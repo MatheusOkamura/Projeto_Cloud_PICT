@@ -17,14 +17,26 @@ const Home = () => {
             <p className="text-xl md:text-2xl mb-8 text-gray-200">
               Desperte seu potencial acadêmico e contribua para o avanço da ciência
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-2xl mx-auto">
               {!user && (
                 <>
-                  <Link to="/cadastro" className="btn-secondary text-lg">
-                    📝 Inscreva-se
+                  <Link 
+                    to="/login" 
+                    className="flex-1 bg-white hover:bg-gray-100 text-ibmec-blue-700 font-bold py-4 px-8 rounded-lg transition transform hover:scale-105 shadow-lg"
+                  >
+                    <div className="flex flex-col items-center">
+                      <span className="text-3xl mb-2">🎓</span>
+                      <span className="text-lg">Área do Aluno</span>
+                    </div>
                   </Link>
-                  <Link to="/sobre" className="btn-outline bg-white text-ibmec-blue-700 hover:bg-gray-100 text-lg">
-                    📚 Saiba Mais
+                  <Link 
+                    to="/login" 
+                    className="flex-1 bg-ibmec-gold-500 hover:bg-ibmec-gold-600 text-white font-bold py-4 px-8 rounded-lg transition transform hover:scale-105 shadow-lg"
+                  >
+                    <div className="flex flex-col items-center">
+                      <span className="text-3xl mb-2">👨‍🏫</span>
+                      <span className="text-lg">Área do Professor</span>
+                    </div>
                   </Link>
                 </>
               )}
@@ -168,20 +180,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* CTA Final */}
-      <section className="py-16 bg-gradient-to-r from-ibmec-blue-700 to-ibmec-blue-900 text-white">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl font-bold mb-6">Pronto para começar sua jornada científica?</h2>
-          <p className="text-xl mb-8 text-gray-200">
-            Faça parte do programa de Iniciação Científica do Ibmec
-          </p>
-          {!user && (
-            <Link to="/login" className="btn-secondary text-lg inline-block">
-              Acessar Plataforma
-            </Link>
-          )}
-        </div>
-      </section>
+      {/* ...existing code... */}
     </div>
   );
 };

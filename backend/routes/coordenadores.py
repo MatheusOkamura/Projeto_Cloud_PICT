@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from sqlalchemy.orm import Session
 from models.database_models import (
     Usuario, Projeto, Entrega, TipoUsuario, EtapaProjeto, MensagemRelatorio, ConfiguracaoSistema
@@ -7,6 +7,8 @@ from database import get_db
 from typing import List
 from datetime import datetime
 import re
+import os
+import shutil
 
 router = APIRouter()
 
@@ -241,6 +243,55 @@ async def avaliar_apresentacao_amostra(
     
     return {
         "message": "Apresentação na amostra avaliada com sucesso",
+        "entrega_id": entrega.id,
+        "status_aprovacao_coordenador": entrega.status_aprovacao_coordenador,
+        "feedback": feedback
+    }
+
+@router.post("/coordenadores/artigo-final/{entrega_id}/avaliar")
+async def avaliar_artigo_final(
+    entrega_id: int,
+    dados: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Coordenador avalia o artigo final após aprovação do orientador.
+    """
+    aprovar = dados.get('aprovar', False)
+    feedback = dados.get('feedback', '')
+    
+    entrega = db.query(Entrega).filter(
+        Entrega.id == entrega_id,
+        Entrega.tipo == "artigo_final"
+    ).first()
+    
+    if not entrega:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Artigo final não encontrado"
+        )
+    
+    # Verificar se o orientador já aprovou
+    if entrega.status_aprovacao_orientador != "aprovado":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O artigo final precisa ser aprovado pelo orientador primeiro"
+        )
+    
+    # Atualizar status de aprovação do coordenador
+    if aprovar:
+        entrega.status_aprovacao_coordenador = "aprovado"
+    else:
+        entrega.status_aprovacao_coordenador = "rejeitado"
+    
+    entrega.feedback_coordenador = feedback
+    entrega.data_avaliacao_coordenador = datetime.now()
+    
+    db.commit()
+    db.refresh(entrega)
+    
+    return {
+        "message": "Artigo final avaliado com sucesso",
         "entrega_id": entrega.id,
         "status_aprovacao_coordenador": entrega.status_aprovacao_coordenador,
         "feedback": feedback
@@ -769,6 +820,7 @@ async def listar_alunos_apresentacao_amostra(
             if aluno:
                 alunos_amostra.append({
                     "projeto_id": projeto.id,
+                    "entrega_id": entrega.id,  # ID da entrega para aprovação
                     "aluno_id": aluno.id,
                     "nome": aluno.nome,
                     "email": aluno.email,
@@ -782,6 +834,9 @@ async def listar_alunos_apresentacao_amostra(
                     "amostra_campus": getattr(projeto, 'amostra_campus', None),
                     "amostra_sala": getattr(projeto, 'amostra_sala', None),
                     "status_amostra": getattr(projeto, 'status_amostra', 'pendente'),
+                    "status_aprovacao_coordenador": entrega.status_aprovacao_coordenador,
+                    "feedback_coordenador": entrega.feedback_coordenador,
+                    "data_avaliacao_coordenador": entrega.data_avaliacao_coordenador.isoformat() if entrega.data_avaliacao_coordenador else None,
                 })
         
         return {
@@ -849,4 +904,87 @@ async def agendar_apresentacao_amostra(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao agendar apresentação na amostra: {str(e)}")
+
+
+@router.post("/coordenadores/projetos/{projeto_id}/certificado")
+async def enviar_certificado(
+    projeto_id: int,
+    certificado: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Fazer upload do certificado de conclusão para um aluno.
+    Apenas coordenadores podem enviar certificados.
+    """
+    # Buscar projeto
+    projeto = db.query(Projeto).filter(Projeto.id == projeto_id).first()
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    
+    # Verificar se o projeto está concluído
+    if projeto.etapa_atual != EtapaProjeto.concluido:
+        raise HTTPException(
+            status_code=400,
+            detail="O projeto precisa estar concluído para receber o certificado"
+        )
+    
+    # Validar tipo de arquivo (apenas PDF)
+    if not certificado.filename.lower().endswith('.pdf'):
+        raise HTTPException(
+            status_code=400,
+            detail="Apenas arquivos PDF são permitidos para certificados"
+        )
+    
+    # Criar diretório se não existir
+    upload_dir = "uploads/certificados"
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Gerar nome único para o arquivo
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    aluno_nome = projeto.aluno.nome.replace(" ", "_")
+    filename = f"certificado_{aluno_nome}_{timestamp}.pdf"
+    file_path = os.path.join(upload_dir, filename)
+    
+    # Salvar arquivo
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(certificado.file, buffer)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao salvar certificado: {str(e)}"
+        )
+    
+    # Atualizar projeto com informações do certificado
+    projeto.certificado_arquivo = filename
+    projeto.certificado_data_emissao = datetime.now()
+    
+    db.commit()
+    db.refresh(projeto)
+    
+    return {
+        "message": "Certificado enviado com sucesso",
+        "projeto_id": projeto.id,
+        "aluno_nome": projeto.aluno.nome,
+        "certificado_arquivo": filename,
+        "data_emissao": projeto.certificado_data_emissao.isoformat()
+    }
+
+
+@router.get("/coordenadores/projetos/{projeto_id}/certificado")
+async def verificar_certificado(projeto_id: int, db: Session = Depends(get_db)):
+    """
+    Verificar se um projeto tem certificado emitido.
+    """
+    projeto = db.query(Projeto).filter(Projeto.id == projeto_id).first()
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    
+    return {
+        "projeto_id": projeto.id,
+        "tem_certificado": projeto.certificado_arquivo is not None,
+        "certificado_arquivo": projeto.certificado_arquivo,
+        "data_emissao": projeto.certificado_data_emissao.isoformat() if projeto.certificado_data_emissao else None
+    }
+
 

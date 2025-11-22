@@ -259,6 +259,9 @@ const AlunoAmostraCard = ({ aluno, onAtualizar }) => {
   const [campus, setCampus] = useState(aluno.amostra_campus || '');
   const [sala, setSala] = useState(aluno.amostra_sala || '');
   const [salvando, setSalvando] = useState(false);
+  const [aprovando, setAprovando] = useState(false);
+  const [mostrarAprovacao, setMostrarAprovacao] = useState(false);
+  const [feedback, setFeedback] = useState('');
 
   const salvarApresentacaoAmostra = async () => {
     if (!data || !hora || !campus || !sala) {
@@ -282,6 +285,40 @@ const AlunoAmostraCard = ({ aluno, onAtualizar }) => {
       alert(err.message);
     } finally {
       setSalvando(false);
+    }
+  };
+
+  const aprovarApresentacaoAmostra = async (decisao) => {
+    if (!feedback && decisao === 'rejeitado') {
+      alert('Por favor, forneça um feedback para a rejeição.');
+      return;
+    }
+
+    if (!window.confirm(`Tem certeza que deseja ${decisao === 'aprovado' ? 'aprovar' : 'rejeitar'} a apresentação na amostra?`)) {
+      return;
+    }
+
+    try {
+      setAprovando(true);
+      const res = await fetch(`${API_BASE_URL}/coordenadores/apresentacao-amostra/${aluno.entrega_id}/avaliar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          aprovar: decisao === 'aprovado',
+          feedback: feedback || `Apresentação ${decisao === 'aprovado' ? 'aprovada' : 'rejeitada'} pela coordenação.`
+        })
+      });
+
+      if (!res.ok) throw new Error('Falha ao avaliar apresentação na amostra');
+
+      alert(`Apresentação na amostra ${decisao === 'aprovado' ? 'aprovada' : 'rejeitada'} com sucesso!`);
+      setMostrarAprovacao(false);
+      setFeedback('');
+      onAtualizar();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setAprovando(false);
     }
   };
 
@@ -370,6 +407,80 @@ const AlunoAmostraCard = ({ aluno, onAtualizar }) => {
               <p>🏫 Campus: {aluno.amostra_campus}</p>
               {aluno.amostra_sala && <p>🚪 Sala: {aluno.amostra_sala}</p>}
             </div>
+          </div>
+        )}
+
+        {/* Status da avaliação da apresentação */}
+        {aluno.status_aprovacao_coordenador && aluno.status_aprovacao_coordenador !== 'pendente' && (
+          <div className={`p-3 rounded border-l-4 ${
+            aluno.status_aprovacao_coordenador === 'aprovado' 
+              ? 'bg-green-50 border-green-500' 
+              : 'bg-red-50 border-red-500'
+          }`}>
+            <p className={`text-sm font-semibold mb-1 ${
+              aluno.status_aprovacao_coordenador === 'aprovado' 
+                ? 'text-green-800' 
+                : 'text-red-800'
+            }`}>
+              {aluno.status_aprovacao_coordenador === 'aprovado' ? '✅ Apresentação Aprovada' : '❌ Apresentação Rejeitada'}
+            </p>
+            {aluno.feedback_coordenador && (
+              <p className="text-xs text-gray-700 mt-1 italic">"{aluno.feedback_coordenador}"</p>
+            )}
+          </div>
+        )}
+
+        {/* Botão para aprovar/rejeitar apresentação */}
+        {aluno.amostra_data && aluno.entrega_id && (!aluno.status_aprovacao_coordenador || aluno.status_aprovacao_coordenador === 'pendente') && (
+          <div className="pt-3 border-t">
+            {!mostrarAprovacao ? (
+              <button
+                onClick={() => setMostrarAprovacao(true)}
+                className="btn-primary w-full text-sm"
+              >
+                📋 Avaliar Apresentação na Amostra
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="label text-xs">Feedback (opcional para aprovação, obrigatório para rejeição)</label>
+                  <textarea
+                    className="input-field text-sm"
+                    rows={3}
+                    placeholder="Digite seu feedback sobre a apresentação na amostra..."
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    disabled={aprovando}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => aprovarApresentacaoAmostra('aprovado')}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50"
+                    disabled={aprovando}
+                  >
+                    {aprovando ? '⏳ Processando...' : '✅ Aprovar'}
+                  </button>
+                  <button
+                    onClick={() => aprovarApresentacaoAmostra('rejeitado')}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50"
+                    disabled={aprovando}
+                  >
+                    {aprovando ? '⏳ Processando...' : '❌ Rejeitar'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMostrarAprovacao(false);
+                      setFeedback('');
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                    disabled={aprovando}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

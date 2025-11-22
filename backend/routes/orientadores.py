@@ -492,6 +492,11 @@ async def obter_projeto_aluno(aluno_id: int, db: Session = Depends(get_db)):
         "status_apresentacao": projeto.status_apresentacao,
         "feedback_apresentacao": projeto.feedback_apresentacao,
         "data_avaliacao_apresentacao": projeto.data_avaliacao_apresentacao,
+        "amostra_data": projeto.amostra_data,
+        "amostra_hora": projeto.amostra_hora,
+        "amostra_campus": projeto.amostra_campus,
+        "amostra_sala": projeto.amostra_sala,
+        "status_amostra": projeto.status_amostra,
     }
 
 @router.get("/alunos/{aluno_id}/projetos")

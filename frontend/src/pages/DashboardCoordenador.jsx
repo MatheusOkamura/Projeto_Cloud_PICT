@@ -32,6 +32,10 @@ const DashboardCoordenador = () => {
   const [alunosExpandidos, setAlunosExpandidos] = useState({}); // Estado para controlar quais alunos estão expandidos
   const [relatorioParcialModal, setRelatorioParcialModal] = useState({ open: false, entregaId: null, aprovar: true, feedback: '' });
   const [apresentacaoAmostraModal, setApresentacaoAmostraModal] = useState({ open: false, entregaId: null, aprovar: true, feedback: '' });
+  const [artigoFinalModal, setArtigoFinalModal] = useState({ open: false, entregaId: null, aprovar: true, feedback: '' });
+  const [alunosConcluidos, setAlunosConcluidos] = useState([]);
+  const [certificadoFile, setCertificadoFile] = useState(null);
+  const [uploadingCertificado, setUploadingCertificado] = useState(false);
 
   const loadInscricoes = async () => {
     try {
@@ -259,6 +263,56 @@ const DashboardCoordenador = () => {
     }
   };
 
+  const avaliarArtigoFinal = async () => {
+    try {
+      if (!artigoFinalModal.aprovar && !artigoFinalModal.feedback.trim()) {
+        alert('É necessário fornecer um feedback ao recusar.');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/coordenadores/artigo-final/${artigoFinalModal.entregaId}/avaliar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          aprovar: artigoFinalModal.aprovar,
+          feedback: artigoFinalModal.feedback || ''
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Falha ao avaliar artigo final');
+      }
+
+      const data = await res.json();
+      
+      // Atualiza localmente
+      setEntregasAluno((prev) => prev.map(e => 
+        e.id === artigoFinalModal.entregaId ? {
+          ...e,
+          status_aprovacao_coordenador: artigoFinalModal.aprovar ? 'aprovado' : 'rejeitado',
+          feedback_coordenador: artigoFinalModal.feedback || '',
+          data_avaliacao_coordenador: new Date().toISOString()
+        } : e
+      ));
+
+      alert(`Artigo final ${artigoFinalModal.aprovar ? 'aprovado' : 'recusado'} com sucesso!`);
+      
+      // Fecha o modal
+      setArtigoFinalModal({ open: false, entregaId: null, aprovar: true, feedback: '' });
+      
+      // Recarrega as entregas para ter certeza de que está atualizado
+      if (selectedAlunoEntregas) {
+        await carregarEntregasAluno(selectedAlunoEntregas.id, selectedAlunoEntregas.nome);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao avaliar artigo final:', err);
+      alert(`Erro ao avaliar artigo final: ${err.message}`);
+    }
+  };
+
   const avaliarRelatorioParcial = async () => {
     try {
       if (!relatorioParcialModal.aprovar && !relatorioParcialModal.feedback.trim()) {
@@ -306,6 +360,80 @@ const DashboardCoordenador = () => {
     } catch (err) {
       console.error('❌ Erro ao avaliar relatório parcial:', err);
       alert(`Erro ao avaliar relatório parcial: ${err.message}`);
+    }
+  };
+
+  // Funções para gerenciar certificados
+  const carregarAlunosConcluidos = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/coordenadores/alunos`);
+      const data = await res.json();
+      
+      // Acessar array de alunos corretamente
+      const todosAlunos = data.alunos || [];
+      
+      // Filtrar apenas alunos com projeto concluído
+      const concluidos = todosAlunos.filter(aluno => aluno.etapa === 'concluido');
+      
+      // Buscar status do certificado para cada aluno
+      const alunosComCertificado = await Promise.all(
+        concluidos.map(async (aluno) => {
+          try {
+            const certRes = await fetch(`${API_BASE_URL}/coordenadores/projetos/${aluno.projeto_id}/certificado`);
+            const certData = await certRes.json();
+            return { ...aluno, ...certData };
+          } catch {
+            return { ...aluno, tem_certificado: false };
+          }
+        })
+      );
+      
+      setAlunosConcluidos(alunosComCertificado);
+    } catch (err) {
+      console.error('Erro ao carregar alunos concluídos:', err);
+    }
+  };
+
+  const enviarCertificado = async (projetoId, alunoNome) => {
+    if (!certificadoFile) {
+      alert('Por favor, selecione um arquivo PDF');
+      return;
+    }
+
+    if (!certificadoFile.name.toLowerCase().endsWith('.pdf')) {
+      alert('Apenas arquivos PDF são permitidos');
+      return;
+    }
+
+    setUploadingCertificado(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('certificado', certificadoFile);
+
+      const res = await fetch(`${API_BASE_URL}/coordenadores/projetos/${projetoId}/certificado`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Falha ao enviar certificado');
+      }
+
+      const data = await res.json();
+      alert(`Certificado enviado com sucesso para ${alunoNome}!`);
+      
+      // Limpar arquivo selecionado
+      setCertificadoFile(null);
+      
+      // Recarregar lista de alunos concluídos
+      await carregarAlunosConcluidos();
+    } catch (err) {
+      console.error('Erro ao enviar certificado:', err);
+      alert(`Erro ao enviar certificado: ${err.message}`);
+    } finally {
+      setUploadingCertificado(false);
     }
   };
 
@@ -711,6 +839,19 @@ const DashboardCoordenador = () => {
                 }`}
               >
                 📈 Relatórios
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('certificados');
+                  carregarAlunosConcluidos();
+                }}
+                className={`px-6 py-3 font-semibold transition ${
+                  activeTab === 'certificados'
+                    ? 'border-b-4 border-ibmec-blue-600 text-ibmec-blue-700'
+                    : 'text-gray-600 hover:text-ibmec-blue-600'
+                }`}
+              >
+                🎓 Certificados
               </button>
             </div>
           </div>
@@ -1217,38 +1358,108 @@ const DashboardCoordenador = () => {
                       );
                     })}
                     
-                    {/* Outras entregas em tabela */}
-                    {entregasAluno.filter(e => e.tipo !== 'relatorio_parcial' && e.tipo !== 'apresentacao').length > 0 && (
-                      <div className="overflow-x-auto mt-6">
-                        <h4 className="font-bold text-ibmec-blue-800 mb-3">Outras Entregas</h4>
-                        <table className="min-w-full text-sm">
-                          <thead>
-                            <tr className="text-left text-gray-600 border-b">
-                              <th className="py-2 pr-4">ID</th>
-                              <th className="py-2 pr-4">Tipo</th>
-                              <th className="py-2 pr-4">Data</th>
-                              <th className="py-2 pr-4">Status</th>
-                              <th className="py-2 pr-4">Ações</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {entregasAluno.filter(e => e.tipo !== 'relatorio_parcial' && e.tipo !== 'apresentacao').map((e) => (
-                              <tr key={e.id} className="border-b last:border-0">
-                                <td className="py-2 pr-4">{e.id}</td>
-                                <td className="py-2 pr-4">{e.tipo}</td>
-                                <td className="py-2 pr-4">{e.data_entrega ? new Date(e.data_entrega).toLocaleString('pt-BR') : '-'}</td>
-                                <td className="py-2 pr-4">{e.status_aprovacao_coordenador || 'pendente'}</td>
-                                <td className="py-2 pr-4 space-x-2">
-                                  <button className="btn-secondary text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'aprovado')}>Aprovar</button>
-                                  <button className="btn-outline text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'em_revisao')}>Em revisão</button>
-                                  <button className="btn-outline text-xs" onClick={() => validarEntrega(e.projeto_id || 0, e.id, 'rejeitado')}>Rejeitar</button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                    {/* Artigo Final */}
+                    {entregasAluno.filter(e => e.tipo === 'artigo_final').map((e) => {
+                      const pendenteOrientador = e.status_aprovacao_orientador === 'pendente';
+                      const pendenteCoordenador = e.status_aprovacao_orientador === 'aprovado' && e.status_aprovacao_coordenador === 'pendente';
+                      const aprovadoFinal = e.status_aprovacao_orientador === 'aprovado' && e.status_aprovacao_coordenador === 'aprovado';
+                      const rejeitado = e.status_aprovacao_orientador === 'rejeitado' || e.status_aprovacao_coordenador === 'rejeitado';
+                      
+                      return (
+                        <div key={e.id} className={`border-2 rounded-lg p-4 ${
+                          pendenteCoordenador ? 'border-yellow-500 bg-yellow-50' :
+                          pendenteOrientador ? 'border-blue-300 bg-blue-50' :
+                          aprovadoFinal ? 'border-green-500 bg-green-50' :
+                          rejeitado ? 'border-red-500 bg-red-50' :
+                          'border-gray-300 bg-gray-50'
+                        }`}>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <h4 className="text-lg font-bold text-ibmec-blue-800 mb-2">
+                                📚 Artigo Científico Final
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <p><strong>Data de Envio:</strong> {e.data_entrega ? new Date(e.data_entrega).toLocaleString('pt-BR') : '-'}</p>
+                                {e.descricao && <p><strong>Descrição:</strong> {e.descricao}</p>}
+                                {e.arquivo && (
+                                  <p>
+                                    <strong>Arquivo:</strong>{' '}
+                                    <a 
+                                      href={`${API_BASE_URL}/uploads/entregas/${e.arquivo}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline"
+                                    >
+                                      📎 {e.arquivo}
+                                    </a>
+                                  </p>
+                                )}
+                                
+                                {/* Status de Aprovação */}
+                                <div className="flex gap-4 mt-3">
+                                  <div className={`px-3 py-2 rounded border-2 ${
+                                    e.status_aprovacao_orientador === 'aprovado' ? 'bg-green-100 border-green-500 text-green-800' :
+                                    e.status_aprovacao_orientador === 'rejeitado' ? 'bg-red-100 border-red-500 text-red-800' :
+                                    'bg-yellow-100 border-yellow-500 text-yellow-800'
+                                  }`}>
+                                    <p className="text-xs font-semibold">Orientador:</p>
+                                    <p className="text-sm">
+                                      {e.status_aprovacao_orientador === 'aprovado' ? '✅ Aprovado' :
+                                       e.status_aprovacao_orientador === 'rejeitado' ? '❌ Rejeitado' : '⏳ Pendente'}
+                                    </p>
+                                  </div>
+                                  {e.status_aprovacao_orientador === 'aprovado' && (
+                                    <div className={`px-3 py-2 rounded border-2 ${
+                                      e.status_aprovacao_coordenador === 'aprovado' ? 'bg-green-100 border-green-500 text-green-800' :
+                                      e.status_aprovacao_coordenador === 'rejeitado' ? 'bg-red-100 border-red-500 text-red-800' :
+                                      'bg-yellow-100 border-yellow-500 text-yellow-800'
+                                    }`}>
+                                      <p className="text-xs font-semibold">Coordenador:</p>
+                                      <p className="text-sm">
+                                        {e.status_aprovacao_coordenador === 'aprovado' ? '✅ Aprovado' :
+                                         e.status_aprovacao_coordenador === 'rejeitado' ? '❌ Rejeitado' : '⏳ Pendente'}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Feedbacks */}
+                                {e.feedback_orientador && (
+                                  <div className="mt-3 p-3 bg-blue-100 border-l-4 border-blue-500 rounded">
+                                    <p className="text-xs font-semibold text-blue-800 mb-1">Feedback do Orientador:</p>
+                                    <p className="text-sm text-gray-700">{e.feedback_orientador}</p>
+                                  </div>
+                                )}
+                                {e.feedback_coordenador && (
+                                  <div className="mt-3 p-3 bg-green-100 border-l-4 border-green-500 rounded">
+                                    <p className="text-xs font-semibold text-green-800 mb-1">Seu Feedback:</p>
+                                    <p className="text-sm text-gray-700">{e.feedback_coordenador}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Botões de Ação para Artigo Final*/}
+                            {pendenteCoordenador && (
+                              <div className="flex flex-col gap-2">
+                                <button 
+                                  onClick={() => setArtigoFinalModal({ open: true, entregaId: e.id, aprovar: true, feedback: '' })}
+                                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm whitespace-nowrap"
+                                >
+                                  ✅ Aprovar Artigo
+                                </button>
+                                <button 
+                                  onClick={() => setArtigoFinalModal({ open: true, entregaId: e.id, aprovar: false, feedback: '' })}
+                                  className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm whitespace-nowrap"
+                                >
+                                  ❌ Recusar Artigo
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </Card>
@@ -1525,6 +1736,125 @@ const DashboardCoordenador = () => {
                   📧 Enviar por Email
                 </button>
               </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Aba de Certificados */}
+        {activeTab === 'certificados' && (
+          <div className="space-y-6">
+            <Card>
+              <h2 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
+                🎓 Gerenciar Certificados de Conclusão
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Envie os certificados de conclusão para os alunos que finalizaram todas as etapas da Iniciação Científica.
+              </p>
+
+              {alunosConcluidos.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">🎯</div>
+                  <p className="text-gray-500 text-lg">Nenhum aluno com projeto concluído no momento</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {alunosConcluidos.map((aluno) => (
+                    <div 
+                      key={aluno.aluno_id}
+                      className={`border-2 rounded-lg p-6 ${
+                        aluno.tem_certificado 
+                          ? 'border-green-500 bg-green-50' 
+                          : 'border-blue-300 bg-blue-50'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-ibmec-blue-800 mb-2">
+                            {aluno.nome}
+                          </h3>
+                          <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
+                            <div>
+                              <p className="text-gray-600 font-semibold">Curso:</p>
+                              <p className="text-gray-800">{aluno.curso}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600 font-semibold">Projeto:</p>
+                              <p className="text-gray-800">{aluno.projeto_titulo}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600 font-semibold">Orientador:</p>
+                              <p className="text-gray-800">{aluno.orientador_nome}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600 font-semibold">Status:</p>
+                              <p className="text-green-600 font-bold">✅ Concluído</p>
+                            </div>
+                          </div>
+
+                          {aluno.tem_certificado ? (
+                            <div className="bg-green-100 border-l-4 border-green-500 p-4 rounded">
+                              <p className="text-green-800 font-semibold flex items-center gap-2">
+                                <span className="text-2xl">✅</span>
+                                Certificado já enviado
+                              </p>
+                              <p className="text-sm text-green-700 mt-1">
+                                Arquivo: {aluno.certificado_arquivo}
+                              </p>
+                              {aluno.data_emissao && (
+                                <p className="text-xs text-green-600 mt-1">
+                                  Emitido em: {new Date(aluno.data_emissao).toLocaleDateString('pt-BR')}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+                              <p className="text-yellow-800 font-semibold mb-3">
+                                ⏳ Certificado pendente
+                              </p>
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Selecione o certificado (PDF):
+                                  </label>
+                                  <input
+                                    type="file"
+                                    accept=".pdf"
+                                    onChange={(e) => setCertificadoFile(e.target.files[0])}
+                                    className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none p-2"
+                                  />
+                                  {certificadoFile && (
+                                    <p className="text-xs text-green-600 mt-1">
+                                      ✓ Arquivo selecionado: {certificadoFile.name}
+                                    </p>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => enviarCertificado(aluno.projeto_id, aluno.nome)}
+                                  disabled={!certificadoFile || uploadingCertificado}
+                                  className={`w-full py-2 px-4 rounded-lg font-semibold transition ${
+                                    !certificadoFile || uploadingCertificado
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                      : 'bg-green-600 hover:bg-green-700 text-white'
+                                  }`}
+                                >
+                                  {uploadingCertificado ? (
+                                    <span className="flex items-center justify-center gap-2">
+                                      <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                                      Enviando...
+                                    </span>
+                                  ) : (
+                                    '📤 Enviar Certificado'
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           </div>
         )}
@@ -1911,6 +2241,53 @@ const DashboardCoordenador = () => {
                   onClick={avaliarApresentacaoAmostra}
                 >
                   {apresentacaoAmostraModal.aprovar ? '✅ Confirmar Aprovação' : '❌ Confirmar Recusa'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Avaliação do Artigo Final */}
+      {artigoFinalModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-2xl font-bold text-ibmec-blue-800 mb-4">
+                {artigoFinalModal.aprovar ? '✅ Aprovar Artigo Científico Final' : '❌ Recusar Artigo Científico Final'}
+              </h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {artigoFinalModal.aprovar ? 'Feedback (Opcional):' : 'Motivo da Recusa (Obrigatório):'}
+                </label>
+                <textarea
+                  value={artigoFinalModal.feedback}
+                  onChange={(e) => setArtigoFinalModal({ ...artigoFinalModal, feedback: e.target.value })}
+                  placeholder={artigoFinalModal.aprovar 
+                    ? 'Digite seu feedback sobre o artigo final...' 
+                    : 'Explique o motivo da recusa do artigo...'}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-ibmec-blue-500 focus:border-transparent"
+                  rows="6"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button 
+                  className="btn-outline" 
+                  onClick={() => setArtigoFinalModal({ open: false, entregaId: null, aprovar: true, feedback: '' })}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className={`font-semibold py-2 px-6 rounded-lg transition ${
+                    artigoFinalModal.aprovar
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-red-600 hover:bg-red-700 text-white'
+                  }`}
+                  onClick={avaliarArtigoFinal}
+                >
+                  {artigoFinalModal.aprovar ? '✅ Confirmar Aprovação' : '❌ Confirmar Recusa'}
                 </button>
               </div>
             </div>
