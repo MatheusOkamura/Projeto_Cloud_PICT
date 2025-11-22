@@ -828,38 +828,44 @@ const DashboardAluno = () => {
                           {/* 1. Relatório Parcial */}
                           <div className="flex flex-col items-center z-10">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado'
-                                ? 'bg-red-500 text-white' 
-                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado'
-                                ? 'bg-red-500 text-white'
-                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
+                              // Se ambos aprovaram, sempre verde
+                              entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
                                 ? 'bg-green-500 text-white'
-                                : etapaAtual === 'relatorio_parcial'
-                                ? 'bg-blue-500 text-white animate-pulse' 
+                                // Se está em etapa posterior, verde
                                 : etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final' || etapaAtual === 'concluido'
                                 ? 'bg-green-500 text-white'
+                                // Se orientador rejeitou (e coordenador ainda não aprovou)
+                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' && entregaRelatorioParcial?.status_aprovacao_coordenador !== 'aprovado'
+                                ? 'bg-red-500 text-white' 
+                                // Se orientador aprovou mas coordenador rejeitou
+                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado'
+                                ? 'bg-red-500 text-white'
+                                // Se está na etapa atual (aguardando ou em andamento)
+                                : etapaAtual === 'relatorio_parcial'
+                                ? 'bg-blue-500 text-white animate-pulse' 
+                                // Padrão: cinza
                                 : 'bg-gray-300 text-gray-600'
                             }`}>
-                              {entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado'
-                                ? '✗'
-                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado'
-                                ? '✗'
-                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
+                              {/* Ícone baseado no status real */}
+                              {entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
                                 ? '✓'
                                 : etapaAtual === 'apresentacao_amostra' || etapaAtual === 'artigo_final' || etapaAtual === 'concluido' 
-                                ? '✓' 
+                                ? '✓'
+                                : (entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' && entregaRelatorioParcial?.status_aprovacao_coordenador !== 'aprovado') ||
+                                  (entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado')
+                                ? '✗'
                                 : '1'}
                             </div>
                             <p className={`text-xs mt-2 text-center font-medium w-20 ${
-                              entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' || 
-                              (entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado')
-                                ? 'text-red-500'
-                                : entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
+                              entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'aprovado'
                                 ? 'text-green-600 font-semibold'
+                                : (entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' && entregaRelatorioParcial?.status_aprovacao_coordenador !== 'aprovado') || 
+                                  (entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado')
+                                ? 'text-red-500'
                                 : ''
                             }`}>
                               Relatório Parcial
-                              {entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' && (
+                              {entregaRelatorioParcial?.status_aprovacao_orientador === 'rejeitado' && entregaRelatorioParcial?.status_aprovacao_coordenador !== 'aprovado' && (
                                 <span className="block text-red-500 text-xs">Recusado pelo orientador</span>
                               )}
                               {entregaRelatorioParcial?.status_aprovacao_orientador === 'aprovado' && entregaRelatorioParcial?.status_aprovacao_coordenador === 'rejeitado' && (
