@@ -43,10 +43,10 @@ class Usuario(Base):
     __tablename__ = "usuarios"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)  # ✅ Limitado
+    email = Column(String(255), unique=True, index=True, nullable=False)
     senha = Column(String(255), nullable=False)
     nome = Column(String(255), nullable=True)
-    cpf = Column(String(14), unique=True, nullable=True)  # ✅ CPF tem 14 caracteres com pontuação
+    cpf = Column(String(14), nullable=True, index=True)  # ❌ Removido unique=True
     telefone = Column(String(20), nullable=True)
     tipo = Column(SQLEnum(TipoUsuario), nullable=False)
     status = Column(SQLEnum(StatusUsuario), default=StatusUsuario.pendente)
@@ -55,13 +55,13 @@ class Usuario(Base):
     # Campos específicos para alunos
     curso = Column(String(255), nullable=True)
     unidade = Column(String(100), nullable=True)
-    matricula = Column(String(50), unique=True, nullable=True)  # ✅ Limitado - matrícula geralmente tem até 20 dígitos
+    matricula = Column(String(50), nullable=True, index=True)  # ❌ Removido unique=True
     cr = Column(Float, nullable=True)
     documento_cr = Column(String(500), nullable=True)
     
     # Campos específicos para orientadores
     departamento = Column(String(255), nullable=True)
-    area_pesquisa = Column(Text, nullable=True)  # Pode ser longo, não tem unique
+    area_pesquisa = Column(Text, nullable=True)
     titulacao = Column(String(100), nullable=True)
     vagas_disponiveis = Column(Integer, default=0)
     
@@ -76,8 +76,8 @@ class Curso(Base):
     __tablename__ = "cursos"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(255), unique=True, nullable=False)  # ✅ Limitado
-    codigo = Column(String(50), unique=True, nullable=False)  # ✅ Limitado
+    nome = Column(String(255), unique=True, nullable=False)
+    codigo = Column(String(50), unique=True, nullable=False)
     ativo = Column(Integer, default=1)
 
 class Inscricao(Base):
@@ -145,8 +145,8 @@ class Projeto(Base):
     data_conclusao = Column(DateTime, nullable=True)
     
     # Dados da apresentação (proposta inicial)
-    apresentacao_data = Column(String(10), nullable=True)  # YYYY-MM-DD
-    apresentacao_hora = Column(String(5), nullable=True)   # HH:MM
+    apresentacao_data = Column(String(10), nullable=True)
+    apresentacao_hora = Column(String(5), nullable=True)
     apresentacao_campus = Column(String(100), nullable=True)
     apresentacao_sala = Column(String(50), nullable=True)
     status_apresentacao = Column(String(20), default="pendente")
@@ -177,7 +177,7 @@ class RelatorioMensal(Base):
     projeto_id = Column(Integer, ForeignKey("projetos.id"), nullable=False)
     ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)
     
-    mes = Column(String(7), nullable=False)  # YYYY-MM
+    mes = Column(String(7), nullable=False)
     descricao = Column(Text, nullable=True)
     arquivo = Column(String(500), nullable=True)
     
@@ -251,7 +251,7 @@ class ConfiguracaoSistema(Base):
     __tablename__ = "configuracoes_sistema"
 
     id = Column(Integer, primary_key=True, index=True)
-    chave = Column(String(100), unique=True, nullable=False, index=True)  # ✅ Limitado
+    chave = Column(String(100), unique=True, nullable=False, index=True)
     valor = Column(String(500), nullable=False)
     descricao = Column(Text, nullable=True)
     ano = Column(Integer, nullable=True)
