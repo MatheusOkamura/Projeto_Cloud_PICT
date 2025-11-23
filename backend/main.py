@@ -39,7 +39,8 @@ if frontend_url:
     logger.info(f"Added frontend URL to CORS: {frontend_url}")
 
 # Adicionar domínios Azure Static Web Apps
-azure_static_web_app_url = os.getenv("AZURE_STATIC_WEB_APP_URL", "https://icy-sea-0c53d910f.3.azurestaticapps.net")
+#azure_static_web_app_url = os.getenv("AZURE_STATIC_WEB_APP_URL", "https://icy-sea-0c53d910f.3.azurestaticapps.net")
+azure_static_web_app_url = os.getenv("AZURE_STATIC_WEB_APP_URL", "https://lively-sky-016c9730f.3.azurestaticapps.net")
 if azure_static_web_app_url:
     allowed_origins.append(azure_static_web_app_url)
     logger.info(f"Added Azure Static Web App to CORS: {azure_static_web_app_url}")

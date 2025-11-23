@@ -16,13 +16,13 @@ class StatusUsuario(str, enum.Enum):
     inativo = "inativo"
 
 class StatusInscricao(str, enum.Enum):
-    pendente_orientador = "pendente_orientador"  # Aguardando aprovação do orientador
-    pendente_coordenador = "pendente_coordenador"  # Aprovada pelo orientador, aguardando coordenador
-    pendente_apresentacao = "pendente_apresentacao"  # Aguardando aprovação após apresentação
-    aprovada = "aprovada"  # Aprovada pelo coordenador após apresentação
-    rejeitada_orientador = "rejeitada_orientador"  # Rejeitada pelo orientador
-    rejeitada_coordenador = "rejeitada_coordenador"  # Rejeitada pelo coordenador
-    rejeitada_apresentacao = "rejeitada_apresentacao"  # Rejeitada após apresentação
+    pendente_orientador = "pendente_orientador"
+    pendente_coordenador = "pendente_coordenador"
+    pendente_apresentacao = "pendente_apresentacao"
+    aprovada = "aprovada"
+    rejeitada_orientador = "rejeitada_orientador"
+    rejeitada_coordenador = "rejeitada_coordenador"
+    rejeitada_apresentacao = "rejeitada_apresentacao"
 
 class EtapaProjeto(str, enum.Enum):
     envio_proposta = "envio_proposta"
@@ -43,26 +43,26 @@ class Usuario(Base):
     __tablename__ = "usuarios"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    senha = Column(String, nullable=False)
-    nome = Column(String, nullable=True)
-    cpf = Column(String, unique=True, nullable=True)
-    telefone = Column(String, nullable=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    senha = Column(String(255), nullable=False)
+    nome = Column(String(255), nullable=True)
+    cpf = Column(String(14), nullable=True, index=True)  # ❌ Removido unique=True
+    telefone = Column(String(20), nullable=True)
     tipo = Column(SQLEnum(TipoUsuario), nullable=False)
     status = Column(SQLEnum(StatusUsuario), default=StatusUsuario.pendente)
     data_cadastro = Column(DateTime, default=datetime.now)
     
     # Campos específicos para alunos
-    curso = Column(String, nullable=True)
-    unidade = Column(String, nullable=True)
-    matricula = Column(String, unique=True, nullable=True)
+    curso = Column(String(255), nullable=True)
+    unidade = Column(String(100), nullable=True)
+    matricula = Column(String(50), nullable=True, index=True)  # ❌ Removido unique=True
     cr = Column(Float, nullable=True)
-    documento_cr = Column(String, nullable=True)
+    documento_cr = Column(String(500), nullable=True)
     
     # Campos específicos para orientadores
-    departamento = Column(String, nullable=True)
-    area_pesquisa = Column(String, nullable=True)
-    titulacao = Column(String, nullable=True)
+    departamento = Column(String(255), nullable=True)
+    area_pesquisa = Column(Text, nullable=True)
+    titulacao = Column(String(100), nullable=True)
     vagas_disponiveis = Column(Integer, default=0)
     
     # Relacionamentos
@@ -76,8 +76,8 @@ class Curso(Base):
     __tablename__ = "cursos"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String, unique=True, nullable=False)
-    codigo = Column(String, unique=True, nullable=False)
+    nome = Column(String(255), unique=True, nullable=False)
+    codigo = Column(String(50), unique=True, nullable=False)
     ativo = Column(Integer, default=1)
 
 class Inscricao(Base):
@@ -85,42 +85,42 @@ class Inscricao(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)  # Ano da iniciação científica
+    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)
     
     # Dados do aluno (snapshot no momento da inscrição)
-    nome = Column(String, nullable=False)
-    email = Column(String, nullable=False)
-    cpf = Column(String, nullable=True)
-    telefone = Column(String, nullable=True)
-    curso = Column(String, nullable=True)
-    matricula = Column(String, nullable=True)
-    unidade = Column(String, nullable=True)
+    nome = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    cpf = Column(String(14), nullable=True)
+    telefone = Column(String(20), nullable=True)
+    curso = Column(String(255), nullable=True)
+    matricula = Column(String(50), nullable=True)
+    unidade = Column(String(100), nullable=True)
     cr = Column(Float, nullable=True)
     
     # Dados do projeto
-    titulo_projeto = Column(String, nullable=False)
-    area_conhecimento = Column(String, nullable=False)
+    titulo_projeto = Column(String(500), nullable=False)
+    area_conhecimento = Column(String(255), nullable=False)
     descricao = Column(Text, nullable=False)
     objetivos = Column(Text, nullable=True)
     metodologia = Column(Text, nullable=True)
     resultados_esperados = Column(Text, nullable=True)
-    arquivo_projeto = Column(String, nullable=True)
+    arquivo_projeto = Column(String(500), nullable=True)
     
     # Orientador selecionado
     orientador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
-    orientador_nome = Column(String, nullable=True)
+    orientador_nome = Column(String(255), nullable=True)
     
     # Status e datas
     status = Column(SQLEnum(StatusInscricao), default=StatusInscricao.pendente_orientador)
     feedback = Column(Text, nullable=True)
     feedback_orientador = Column(Text, nullable=True)
     feedback_coordenador = Column(Text, nullable=True)
-    status_aprovacao_orientador = Column(String, default="pendente")  # pendente, aprovado, rejeitado
-    status_aprovacao_coordenador = Column(String, default="pendente")  # pendente, aprovado, rejeitado
+    status_aprovacao_orientador = Column(String(20), default="pendente")
+    status_aprovacao_coordenador = Column(String(20), default="pendente")
     data_submissao = Column(DateTime, default=datetime.now)
     data_avaliacao_orientador = Column(DateTime, nullable=True)
     data_avaliacao_coordenador = Column(DateTime, nullable=True)
-    data_avaliacao = Column(DateTime, nullable=True)  # Mantém por compatibilidade
+    data_avaliacao = Column(DateTime, nullable=True)
     
     # Relacionamento
     usuario = relationship("Usuario", back_populates="inscricoes", foreign_keys=[usuario_id])
@@ -132,10 +132,10 @@ class Projeto(Base):
     aluno_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     orientador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     inscricao_id = Column(Integer, ForeignKey("inscricoes.id"), nullable=True)
-    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)  # Ano da iniciação científica
+    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)
     
-    titulo = Column(String, nullable=False)
-    area_conhecimento = Column(String, nullable=False)
+    titulo = Column(String(500), nullable=False)
+    area_conhecimento = Column(String(255), nullable=False)
     descricao = Column(Text, nullable=False)
     objetivos = Column(Text, nullable=True)
     metodologia = Column(Text, nullable=True)
@@ -145,23 +145,23 @@ class Projeto(Base):
     data_conclusao = Column(DateTime, nullable=True)
     
     # Dados da apresentação (proposta inicial)
-    apresentacao_data = Column(String, nullable=True)  # Formato: YYYY-MM-DD
-    apresentacao_hora = Column(String, nullable=True)  # Formato: HH:MM
-    apresentacao_campus = Column(String, nullable=True)
-    apresentacao_sala = Column(String, nullable=True)
-    status_apresentacao = Column(String, default="pendente")  # pendente, aprovado, rejeitado
-    feedback_apresentacao = Column(Text, nullable=True)  # Feedback do coordenador sobre a apresentação
+    apresentacao_data = Column(String(10), nullable=True)
+    apresentacao_hora = Column(String(5), nullable=True)
+    apresentacao_campus = Column(String(100), nullable=True)
+    apresentacao_sala = Column(String(50), nullable=True)
+    status_apresentacao = Column(String(20), default="pendente")
+    feedback_apresentacao = Column(Text, nullable=True)
     data_avaliacao_apresentacao = Column(DateTime, nullable=True)
     
     # Dados da apresentação na amostra científica
-    amostra_data = Column(String, nullable=True)  # Formato: YYYY-MM-DD
-    amostra_hora = Column(String, nullable=True)  # Formato: HH:MM
-    amostra_campus = Column(String, nullable=True)
-    amostra_sala = Column(String, nullable=True)
-    status_amostra = Column(String, default="pendente")  # pendente, agendado
+    amostra_data = Column(String(10), nullable=True)
+    amostra_hora = Column(String(5), nullable=True)
+    amostra_campus = Column(String(100), nullable=True)
+    amostra_sala = Column(String(50), nullable=True)
+    status_amostra = Column(String(20), default="pendente")
     
     # Certificado de conclusão
-    certificado_arquivo = Column(String, nullable=True)  # Nome do arquivo PDF do certificado
+    certificado_arquivo = Column(String(500), nullable=True)
     certificado_data_emissao = Column(DateTime, nullable=True)
     
     # Relacionamentos
@@ -175,11 +175,11 @@ class RelatorioMensal(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     projeto_id = Column(Integer, ForeignKey("projetos.id"), nullable=False)
-    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)  # Ano da iniciação científica
+    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)
     
-    mes = Column(String, nullable=False)  # Formato: YYYY-MM
+    mes = Column(String(7), nullable=False)
     descricao = Column(Text, nullable=True)
-    arquivo = Column(String, nullable=True)
+    arquivo = Column(String(500), nullable=True)
     
     data_envio = Column(DateTime, default=datetime.now)
     
@@ -192,22 +192,22 @@ class Entrega(Base):
     id = Column(Integer, primary_key=True, index=True)
     projeto_id = Column(Integer, ForeignKey("projetos.id"), nullable=False)
     aluno_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)  # Ano da iniciação científica
+    ano = Column(Integer, default=lambda: datetime.now().year, nullable=False, index=True)
     
-    tipo = Column(String, nullable=False)  # relatorio_parcial, relatorio_mensal, apresentacao, artigo_final
-    titulo = Column(String, nullable=False)
+    tipo = Column(String(50), nullable=False)
+    titulo = Column(String(500), nullable=False)
     descricao = Column(Text, nullable=True)
-    arquivo = Column(String, nullable=True)
+    arquivo = Column(String(500), nullable=True)
     
     data_entrega = Column(DateTime, default=datetime.now)
     prazo = Column(DateTime, nullable=True)
     
     # Campos de aprovação
-    status_aprovacao_orientador = Column(String, default="pendente")  # pendente, aprovado, rejeitado
+    status_aprovacao_orientador = Column(String(20), default="pendente")
     feedback_orientador = Column(Text, nullable=True)
     data_avaliacao_orientador = Column(DateTime, nullable=True)
     
-    status_aprovacao_coordenador = Column(String, default="pendente")  # pendente, aprovado, rejeitado
+    status_aprovacao_coordenador = Column(String(20), default="pendente")
     feedback_coordenador = Column(Text, nullable=True)
     data_avaliacao_coordenador = Column(DateTime, nullable=True)
     
@@ -221,9 +221,9 @@ class Notificacao(Base):
     id = Column(Integer, primary_key=True, index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     
-    titulo = Column(String, nullable=False)
+    titulo = Column(String(255), nullable=False)
     mensagem = Column(Text, nullable=False)
-    tipo = Column(String, nullable=False)  # info, sucesso, aviso, erro
+    tipo = Column(String(20), nullable=False)
     lida = Column(Integer, default=0)
     
     data_criacao = Column(DateTime, default=datetime.now)
@@ -239,7 +239,7 @@ class MensagemRelatorio(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     
     mensagem = Column(Text, nullable=False)
-    tipo_usuario = Column(String, nullable=False)  # coordenador ou orientador
+    tipo_usuario = Column(String(20), nullable=False)
     
     data_criacao = Column(DateTime, default=datetime.now)
     
@@ -248,16 +248,12 @@ class MensagemRelatorio(Base):
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
 
 class ConfiguracaoSistema(Base):
-    """
-    Tabela para armazenar configurações do sistema.
-    """
     __tablename__ = "configuracoes_sistema"
 
     id = Column(Integer, primary_key=True, index=True)
-    chave = Column(String, unique=True, nullable=False, index=True)  # Ex: 'inscricoes_abertas'
-    valor = Column(String, nullable=False)  # Ex: 'true' ou 'false'
+    chave = Column(String(100), unique=True, nullable=False, index=True)
+    valor = Column(String(500), nullable=False)
     descricao = Column(Text, nullable=True)
-    ano = Column(Integer, nullable=True)  # Ano específico da configuração (ex: 2025, 2026)
+    ano = Column(Integer, nullable=True)
     data_atualizacao = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    atualizado_por = Column(Integer, nullable=True)  # ID do usuário que atualizou
-
+    atualizado_por = Column(Integer, nullable=True)
