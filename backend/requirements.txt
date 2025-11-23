@@ -10,6 +10,7 @@ passlib[bcrypt]==1.7.4
 python-dotenv==1.0.0
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
+pyodbc==5.0.1  # Driver ODBC para SQL Server
 requests==2.31.0
 msal==1.25.0
 httpx==0.25.2
