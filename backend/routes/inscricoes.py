@@ -22,7 +22,7 @@ router = APIRouter()
 UPLOAD_DIR = Path("uploads/propostas")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-@router.get("/status")
+@router.get("/inscricoes/status")
 def verificar_status_inscricoes(db: Session = Depends(get_db)):
     """
     Endpoint público para verificar se as inscrições estão abertas e qual o ano ativo.
@@ -65,7 +65,7 @@ def verificar_status_inscricoes(db: Session = Depends(get_db)):
             "data_atualizacao": None
         }
 
-@router.post("/proposta", status_code=status.HTTP_201_CREATED)
+@router.post("/inscricoes/proposta", status_code=status.HTTP_201_CREATED)
 async def submeter_proposta(
     usuario_id: int = Form(...),
     titulo_projeto: str = Form(...),
@@ -165,7 +165,7 @@ async def submeter_proposta(
         "data_submissao": nova_inscricao.data_submissao.isoformat()
     }
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/inscricoes", status_code=status.HTTP_201_CREATED)
 async def criar_inscricao(
     nome: str = Form(...),
     email: str = Form(...),
@@ -216,7 +216,7 @@ async def criar_inscricao(
         "status": nova_inscricao.status.value
     }
 
-@router.get("/usuario/{usuario_id}")
+@router.get("/inscricoes/usuario/{usuario_id}")
 async def obter_inscricao_usuario(usuario_id: int, db: Session = Depends(get_db)):
     """
     Obter inscrição/proposta de um usuário específico.
@@ -267,7 +267,7 @@ async def obter_inscricao_usuario(usuario_id: int, db: Session = Depends(get_db)
         }
     }
 
-@router.get("/", response_model=List[dict])
+@router.get("/inscricoes", response_model=List[dict])
 async def listar_inscricoes(
     status: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -333,7 +333,7 @@ async def listar_inscricoes(
     
     return resultado
 
-@router.get("/orientador/{orientador_id}/pendentes")
+@router.get("/inscricoes/orientador/{orientador_id}/pendentes")
 async def listar_propostas_pendentes_orientador(
     orientador_id: int,
     db: Session = Depends(get_db)
@@ -369,7 +369,7 @@ async def listar_propostas_pendentes_orientador(
         ]
     }
 
-@router.get("/coordenador/pendentes")
+@router.get("/inscricoes/coordenador/pendentes")
 async def listar_propostas_pendentes_coordenador(db: Session = Depends(get_db)):
     """
     Listar propostas que aguardam avaliação do coordenador.
@@ -405,7 +405,7 @@ async def listar_propostas_pendentes_coordenador(db: Session = Depends(get_db)):
         ]
     }
 
-@router.get("/{inscricao_id}")
+@router.get("/inscricoes/{inscricao_id}")
 async def obter_inscricao(inscricao_id: int, db: Session = Depends(get_db)):
     """
     Obter detalhes de uma inscrição específica.
@@ -450,7 +450,7 @@ async def obter_inscricao(inscricao_id: int, db: Session = Depends(get_db)):
         "orientador_nome": inscricao.orientador_nome
     }
 
-@router.patch("/{inscricao_id}/status")
+@router.patch("/inscricoes/{inscricao_id}/status")
 async def atualizar_status(
     inscricao_id: int,
     novo_status: str,
@@ -518,7 +518,7 @@ async def atualizar_status(
         "novo_status": status_enum.value
     }
 
-@router.post("/{inscricao_id}/orientador/avaliar")
+@router.post("/inscricoes/{inscricao_id}/orientador/avaliar")
 async def orientador_avaliar(
     inscricao_id: int,
     aprovar: bool = Form(...),
@@ -575,7 +575,7 @@ async def orientador_avaliar(
         "proxima_etapa": "coordenador" if aprovar else None
     }
 
-@router.post("/{inscricao_id}/coordenador/avaliar")
+@router.post("/inscricoes/{inscricao_id}/coordenador/avaliar")
 async def coordenador_avaliar(
     inscricao_id: int,
     aprovar: bool = Form(...),
@@ -659,7 +659,7 @@ async def coordenador_avaliar(
         "projeto_criado": aprovar
     }
 
-@router.delete("/{inscricao_id}")
+@router.delete("/inscricoes/{inscricao_id}")
 async def deletar_inscricao(inscricao_id: int, db: Session = Depends(get_db)):
     """
     Deletar uma inscrição e o projeto associado.
